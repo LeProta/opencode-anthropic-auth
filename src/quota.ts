@@ -15,6 +15,8 @@ export interface RateLimitSnapshot {
   capturedAt: number
   status: number
   headers: Record<string, string>
+  /** describeConnection() of the login that received it; never shown for another login. */
+  account?: string
 }
 
 /** The rate-limit headers of a response, bounded; undefined when it has none. */
@@ -60,7 +62,7 @@ export function formatQuota(
   now = Date.now(),
 ): string {
   if (!snapshot) {
-    return 'Claude subscription quota: no Anthropic response seen yet in this process. Send a message with a Claude model first.'
+    return 'Claude subscription quota: no Anthropic response seen yet for the active Claude Pro/Max login. Send a message with a Claude model first.'
   }
   const h = snapshot.headers
   const lines = [

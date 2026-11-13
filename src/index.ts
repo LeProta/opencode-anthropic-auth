@@ -811,8 +811,12 @@ export default Plugin.define({
         // A direct plugin-owned response survives a best-effort lease failure.
       }
       if (!ownedDirectly && !lease) return
-      const rateLimit = captureRateLimitHeaders(event.response)
-      if (rateLimit) {
+      const captured = captureRateLimitHeaders(event.response)
+      if (captured) {
+        const rateLimit = {
+          ...captured,
+          account: connectionForRequest(event.request),
+        }
         lastRateLimit = rateLimit
         void ctx.storage
           ?.set(QUOTA_STORAGE_KEY, rateLimit as never)
@@ -820,7 +824,7 @@ export default Plugin.define({
       }
       if (isDebugEnabled()) {
         console.warn(
-          `[${PLUGIN_ID}] ${event.model.id} HTTP ${event.response.status} ${JSON.stringify(rateLimit?.headers ?? {})}`,
+          `[${PLUGIN_ID}] ${event.model.id} HTTP ${event.response.status} ${JSON.stringify(captured?.headers ?? {})}`,
         )
       }
       if (!event.response.ok) {
@@ -934,7 +938,14 @@ export default Plugin.define({
       })()
     }
 
-    const quotaText = () => formatQuota(lastRateLimit)
+    // A snapshot is shown only to the login that received it (account switch, restart).
+    const quotaForActiveLogin = async () => {
+      const active = await resolveActiveOAuth(ctx).catch(() => undefined)
+      return active &&
+        lastRateLimit?.account === describeConnection(active.connection)
+        ? lastRateLimit
+        : undefined
+    }
     if (typeof ctx.tool?.transform === 'function') {
       await ctx.tool.transform((draft) => {
         draft.add({
@@ -946,10 +957,13 @@ export default Plugin.define({
             properties: {},
             additionalProperties: false,
           } as const,
-          execute: async () => ({
-            content: quotaText(),
-            metadata: { ok: !!lastRateLimit },
-          }),
+          execute: async () => {
+            const snapshot = await quotaForActiveLogin()
+            return {
+              content: formatQuota(snapshot),
+              metadata: { ok: !!snapshot },
+            }
+          },
         })
       })
     }
@@ -962,7 +976,7 @@ export default Plugin.define({
             if (typeof ctx.session.synthetic !== 'function') return
             await ctx.session.synthetic({
               sessionID: input.sessionID,
-              text: quotaText(),
+              text: formatQuota(await quotaForActiveLogin()),
               delivery: input.delivery,
               resume: false,
             })

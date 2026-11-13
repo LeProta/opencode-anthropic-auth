@@ -116,6 +116,45 @@ describe('features shared with the Google plugin', () => {
     expect(result.content).toContain('Claude subscription quota')
   })
 
+  test('shows a quota snapshot only to the login that received it', async () => {
+    const headers = {
+      'anthropic-ratelimit-unified-status': 'allowed',
+      'anthropic-ratelimit-unified-5h-utilization': '0.4',
+    }
+    const snapshot = (account: string) => ({
+      capturedAt: Date.now(),
+      status: 200,
+      headers,
+      account,
+    })
+    const run = async (stored: unknown) => {
+      const c = context(oauthCredential)
+      ;(c.ctx as any).storage = {
+        get: async (key: string) =>
+          key === 'ratelimit-snapshot' ? stored : undefined,
+        set: async () => {},
+      }
+      await plugin.setup(c.ctx as any)
+      return c.tools[0].execute({})
+    }
+    const { describeConnection } = await import('../rate-limit')
+    const mine = describeConnection({ id: 'c1', type: 'credential' })
+
+    const same = await run(snapshot(mine))
+    expect(same.metadata.ok).toBe(true)
+    expect(same.content).toContain('40% used')
+
+    const other = await run(
+      snapshot(describeConnection({ id: 'c2', type: 'credential' })),
+    )
+    expect(other.metadata.ok).toBe(false)
+    expect(other.content).not.toContain('40% used')
+
+    // Snapshots saved before this fix carry no account: not shown either.
+    const legacy = await run({ capturedAt: Date.now(), status: 200, headers })
+    expect(legacy.metadata.ok).toBe(false)
+  })
+
   test('says once that a login made by another plugin is left alone', async () => {
     const c = context({ ...oauthCredential, methodID: 'claude-code' })
     await plugin.setup(c.ctx as any)
