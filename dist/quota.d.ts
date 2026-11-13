@@ -10,6 +10,8 @@ export interface RateLimitSnapshot {
     capturedAt: number;
     status: number;
     headers: Record<string, string>;
+    /** describeConnection() of the login that received it; never shown for another login. */
+    account?: string;
 }
 /** The rate-limit headers of a response, bounded; undefined when it has none. */
 export declare function captureRateLimitHeaders(response: Response, now?: number): RateLimitSnapshot | undefined;

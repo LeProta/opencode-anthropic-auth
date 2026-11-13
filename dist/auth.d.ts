@@ -1,3 +1,8 @@
+/**
+ * True only when the whole cause chain says "never sent": one undelivered code
+ * and no other error code, abort or timeout at any level. Anything ambiguous
+ * keeps ex-machina's replay protection.
+ */
 export declare function isUndeliveredNetworkError(error: unknown): boolean;
 export type AuthorizationResult = {
     url: string;

@@ -10,7 +10,7 @@ own commit so they can be offered upstream.
 ## Install
 
 ```bash
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.2
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.4
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:
@@ -28,9 +28,16 @@ Fixes:
 
 - A token refresh that never left the machine (`ECONNREFUSED`, `ENOTFOUND`,
   `EAI_AGAIN`, no route, connect timeout) no longer blocks the refresh token for the
-  rest of the process (ex-machina issue #309). Timeouts after sending stay blocked.
+  rest of the process (ex-machina issue #309). Timeouts after sending stay blocked,
+  and so does any error whose cause chain holds another code, an abort or a timeout.
 - The user's instruction files (`Instructions from: …` blocks) are never removed from
   the system prompt; CRLF prompts no longer lose everything after the identity line.
+  OpenCode-link paragraphs are removed only inside OpenCode's own prompt (identity
+  paragraph to environment block): an agent or custom system prompt that links to
+  OpenCode's docs is kept.
+- An unusable `ANTHROPIC_BASE_URL` (not https, http off localhost, embedded
+  credentials) fails the request with a clear message instead of silently going to
+  the official API.
 - A forced `tool_choice` names the aliased tool, like the tool definitions.
 - The `claude_code_version_too_old` check gives up after 1 s on a body that never
   arrives, instead of holding the response.
@@ -43,7 +50,8 @@ Features shared with the Google plugin:
 
 - Prices of Anthropic models are zeroed while the Claude Pro/Max login is active.
 - `claude_quota` tool and `/cquota` command: the `anthropic-ratelimit-*` headers of the
-  last response (5-hour and weekly windows). No extra request.
+  last response (5-hour and weekly windows). No extra request. A snapshot is shown
+  only while the login that received it is active.
 - Daily upstream check (see [UPSTREAM.md](UPSTREAM.md)): notice when ex-machina
   `v2/main` or CLIProxyAPI's Claude files moved, or when the reported Claude Code
   version is 25+ releases behind npm's latest. Never downloads or runs code.
@@ -54,6 +62,12 @@ client headers, imitated `metadata.user_id`, compression). See UPSTREAM.md.
 
 Not implemented because they could not be verified: filtering models through
 `/v1/models`, an account label from the OAuth profile, a localhost callback.
+
+Not implemented on purpose: refresh-and-replay after a 401. Anthropic rotates the
+refresh token on every refresh, and OpenCode 2.2.7 gives plugins no way to store a
+credential (only `connection.active` / `connection.resolve`). A refresh made by the
+plugin would leave OpenCode holding a consumed refresh token, and the login would be
+lost at the next restart. Refreshes stay with OpenCode's `refresh` call.
 
 ## Configuration (in addition to the README's)
 

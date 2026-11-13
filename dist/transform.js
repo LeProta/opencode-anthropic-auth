@@ -654,6 +654,11 @@ export function rewriteUrl(input) {
         return { input, url: null };
     const originalHref = requestUrl.href;
     const baseUrl = resolveBaseUrl();
+    // A configured endpoint that fails validation must not silently fall back to the official API.
+    if (!baseUrl && process.env.ANTHROPIC_BASE_URL?.trim()) {
+        throw new Error('ANTHROPIC_BASE_URL is set but not usable: it must be an https:// URL ' +
+            '(or http:// on localhost) without a user name or password. Fix it or unset it.');
+    }
     if (baseUrl) {
         requestUrl.protocol = baseUrl.protocol;
         requestUrl.host = baseUrl.host;
@@ -697,10 +702,20 @@ export function sanitizeSystemText(text) {
     const userPart = userStart === -1 ? '' : normalized.slice(userStart);
     // Split into paragraphs (separated by one or more blank lines)
     const paragraphs = opencodePart.split(/\n\n+/);
-    const filtered = paragraphs.filter((paragraph) => {
+    // Anchor paragraphs are removed only inside OpenCode's own provider prompt:
+    // from its identity paragraph up to the environment block. Text outside it
+    // (an agent prompt, a custom system prompt) is the user's and is kept, even
+    // when it links to OpenCode's docs or repository.
+    const identityIndex = paragraphs.findIndex((paragraph) => paragraph.includes(OPENCODE_IDENTITY_PREFIX));
+    const envIndex = paragraphs.findIndex((paragraph, index) => index > identityIndex && ENVIRONMENT_BLOCK_PATTERN.test(paragraph));
+    const providerEnd = envIndex === -1 ? paragraphs.length : envIndex;
+    const filtered = paragraphs.filter((paragraph, index) => {
         if (paragraph.includes(OPENCODE_IDENTITY_PREFIX)) {
             // If the paragraph contains the identity, drop it entirely
             return false;
+        }
+        if (identityIndex === -1 || index < identityIndex || index >= providerEnd) {
+            return true;
         }
         // Remove paragraphs containing any removal anchor
         for (const anchor of PARAGRAPH_REMOVAL_ANCHORS) {
@@ -724,6 +739,8 @@ export function sanitizeSystemText(text) {
     const separator = /\s*$/.exec(opencodePart)?.[0] || '\n';
     return `${head}${separator}${tail}`;
 }
+/** First paragraph of OpenCode's environment block (original or already rewritten). */
+const ENVIRONMENT_BLOCK_PATTERN = /^(Here is some useful information about the environment you are running in:|Environment context you are running in:|<env>)/;
 /** Start of OpenCode's block for a user instruction file, at a line start. */
 const USER_INSTRUCTIONS_PATTERN = /(?<=^|\n)Instructions from: /;
 function isRecord(value) {

@@ -47,7 +47,7 @@ function resetIn(value, now) {
 }
 export function formatQuota(snapshot, now = Date.now()) {
     if (!snapshot) {
-        return 'Claude subscription quota: no Anthropic response seen yet in this process. Send a message with a Claude model first.';
+        return 'Claude subscription quota: no Anthropic response seen yet for the active Claude Pro/Max login. Send a message with a Claude model first.';
     }
     const h = snapshot.headers;
     const lines = [
