@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, spyOn, test } from 'bun:test'
 import plugin from '../index.ts'
 
 const oauthCredential = {
@@ -114,6 +114,32 @@ describe('features shared with the Google plugin', () => {
     expect(c.commands.map((t) => t.name)).toEqual(['cquota'])
     const result = await c.tools[0].execute({})
     expect(result.content).toContain('Claude subscription quota')
+  })
+
+  test('says once that a login made by another plugin is left alone', async () => {
+    const c = context({ ...oauthCredential, methodID: 'claude-code' })
+    await plugin.setup(c.ctx as any)
+    const warn = spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const request = new Request('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        body: '{}',
+      })
+      const event = {
+        model: { providerID: 'anthropic', id: 'claude-haiku-5-5' },
+        request,
+      }
+      await c.hooks.get('http.request')!(event)
+      await c.hooks.get('http.request')!({ ...event })
+      expect(event.request).toBe(request)
+      const messages = warn.mock.calls.map((call) => String(call[0]))
+      const foreign = messages.filter((m) => m.includes('another plugin'))
+      expect(foreign).toHaveLength(1)
+      expect(foreign[0]).toContain('"claude-code"')
+      expect(foreign[0]).toContain('opencode auth login anthropic')
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   test('cancels its event subscription when disposed', async () => {

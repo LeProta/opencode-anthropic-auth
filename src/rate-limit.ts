@@ -497,3 +497,16 @@ export async function enhanceRateLimitResponse(
     }),
   }
 }
+
+/** An active Anthropic OAuth login this plugin does not own (made by another plugin). */
+export function foreignLoginMessage(
+  pluginId: string,
+  methodID: string,
+): string {
+  return (
+    `[${pluginId}] The active Anthropic login was made by another plugin ` +
+    `(method "${methodID.slice(0, 40)}"), so this plugin leaves requests untouched ` +
+    'and Anthropic may refuse them. Sign in again with ' +
+    '"opencode auth login anthropic" and pick "Claude Pro/Max".'
+  )
+}

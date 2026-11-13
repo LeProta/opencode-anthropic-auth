@@ -29,6 +29,7 @@ import {
   createConnectionLabel,
   describeConnection,
   enhanceRateLimitResponse,
+  foreignLoginMessage,
 } from './rate-limit.ts'
 import {
   createStrippedStream,
@@ -336,6 +337,25 @@ export default Plugin.define({
     const ownershipKey = randomBytes(32)
     let reconstructedAliasLookups = 0
     let setupActive = true
+    // An Anthropic OAuth login made by another plugin (e.g. method "claude-code")
+    // is left alone: say so once, since Anthropic then refuses the request.
+    let foreignLoginWarned = false
+    const warnForeignLogin = async () => {
+      if (foreignLoginWarned) return
+      const connection = await ctx.integration.connection
+        .active(INTEGRATION_ID)
+        .catch(() => undefined)
+      const credential = connection
+        ? await ctx.integration.connection
+            .resolve(connection)
+            .catch(() => undefined)
+        : undefined
+      if (credential?.type !== 'oauth' || credential.methodID === METHOD_ID) {
+        return
+      }
+      foreignLoginWarned = true
+      console.warn(foreignLoginMessage(PLUGIN_ID, String(credential.methodID)))
+    }
     const eventAbort = new AbortController()
     // Last rate-limit headers Anthropic sent (claude_quota / /cquota).
     let lastRateLimit: RateLimitSnapshot | undefined
@@ -673,7 +693,11 @@ export default Plugin.define({
       if (!setupActive) return
       if (event.model.providerID !== INTEGRATION_ID) return
       const active = await resolveActiveOAuth(ctx)
-      if (!setupActive || !active) return
+      if (!setupActive) return
+      if (!active) {
+        await warnForeignLogin()
+        return
+      }
       const { credential } = active
       const connectionDescription = describeConnection(active.connection)
 

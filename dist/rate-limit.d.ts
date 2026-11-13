@@ -15,4 +15,6 @@ export declare function createConnectionLabel(entropy?: Uint8Array): string;
 export declare function describeConnection(connection: ConnectionInfo): string;
 export declare function isSubscriptionUsageDiagnostic(message: string): boolean;
 export declare function enhanceRateLimitResponse(response: Response, connection: string, options?: RateLimitOptions): Promise<RateLimitEnhancement>;
+/** An active Anthropic OAuth login this plugin does not own (made by another plugin). */
+export declare function foreignLoginMessage(pluginId: string, methodID: string): string;
 export {};
