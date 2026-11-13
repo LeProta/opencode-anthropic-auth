@@ -95,7 +95,8 @@ try {
 
   const extractedRoot = resolve(temporaryRoot, 'extracted')
   mkdirSync(extractedRoot)
-  run(['tar', '-xzf', tarball, '-C', extractedRoot], PROJECT_ROOT)
+  // Relative paths: GNU tar (Git for Windows) reads "C:\…" as a remote host.
+  run(['tar', '-xzf', filename, '-C', 'extracted'], temporaryRoot)
 
   const extractedPackage = resolve(extractedRoot, 'package')
   symlinkSync(
