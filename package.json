@@ -30,7 +30,8 @@
     "lint": "biome lint --error-on-warnings .",
     "change": "changeset",
     "release": "bun run build && bun change publish",
-    "release:next": "bun scripts/validate-next-release.ts && bun run release"
+    "release:next": "bun scripts/validate-next-release.ts && bun run release",
+    "check:upstream": "bun scripts/check-upstream.ts"
   },
   "dependencies": {
     "@opencode/plugin": "2.0.4",
