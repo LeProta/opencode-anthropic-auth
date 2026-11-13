@@ -7,10 +7,22 @@ ex-machina code (OAuth, refresh protection, tool aliases, streaming, compatibili
 layer) is kept as it is; changes are bug fixes and features listed below, each in its
 own commit so they can be offered upstream.
 
+## Versioning
+
+Both LeProta OAuth plugins use `MAJOR.MINOR.PATCH` in `package.json` and
+`vMAJOR.MINOR.PATCH` for GitHub tags. Increment the major for incompatible changes,
+the minor for compatible features, and the patch for fixes or documentation updates.
+Each plugin advances independently; matching numbers do not imply matching features.
+Fork versions are independent of upstream versions and client versions sent to APIs.
+
+Version `2.1.0` renames `2.0.0-next.7-leprota.4` without runtime changes. Existing
+tags remain available. The ex-machina base is recorded in [UPSTREAM.md](UPSTREAM.md),
+not in the fork's version suffix.
+
 ## Install
 
 ```bash
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.4
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.1.0
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:
@@ -77,6 +89,10 @@ lost at the next restart. Refreshes stay with OpenCode's `refresh` call.
 | `OPENCODE_ANTHROPIC_DEBUG=1` | Logs, per response, the model, HTTP status and the `anthropic-ratelimit-*` headers. Never bodies or tokens. |
 
 ## Development
+
+Fork releases are published on GitHub with the matching `vMAJOR.MINOR.PATCH` tag
+and `main` commit. The inherited `release:next` script is for ex-machina's npm
+prerelease channel, not for these fork releases.
 
 ```bash
 bun install --ignore-scripts

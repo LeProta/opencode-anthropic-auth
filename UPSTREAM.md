@@ -1,5 +1,9 @@
 # Upstream sources
 
+The fork has its own `MAJOR.MINOR.PATCH` versions. Its ex-machina base is
+`2.0.0-next.7`, commit `59a09c8ce61fddc8c84c59c2271fd3b62d01be19` on `v2/main`;
+this upstream prerelease version does not determine the fork's version format.
+
 This fork follows two upstreams, recorded in `src/upstream.ts` and checked with
 `bun run check:upstream` (and once a day by the plugin itself, which only prints a
 notice; set `OPENCODE_ANTHROPIC_UPDATE_CHECK=0` to turn it off):
