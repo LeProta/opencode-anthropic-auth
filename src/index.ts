@@ -44,7 +44,7 @@ import {
 import { checkUpstreamUpdate } from './upstream.ts'
 import { detectClaudeCodeVersionRejection } from './version-rejection.ts'
 
-const PLUGIN_ID = 'ex-machina.anthropic-auth'
+const PLUGIN_ID = 'leprota.anthropic-auth'
 const INTEGRATION_ID = 'anthropic'
 const REFRESH_CACHE_GRACE_MS = 30_000
 const MAX_REQUEST_BODY_BYTES = 128 * 1024 * 1024
@@ -269,7 +269,7 @@ type AliasLease = {
 function warnIfInsecureUnsupported() {
   if (!isInsecure()) return
   console.warn(
-    '[ex-machina.anthropic-auth] ANTHROPIC_INSECURE is set, but OpenCode v2 ' +
+    `[${PLUGIN_ID}] ANTHROPIC_INSECURE is set, but OpenCode v2 ` +
       'plugin request hooks cannot disable TLS verification for a custom ' +
       'ANTHROPIC_BASE_URL endpoint. TLS verification remains enabled — ' +
       'requests to an untrusted/self-signed endpoint will fail.',
@@ -309,9 +309,9 @@ export default Plugin.define({
       process.env[ANTHROPIC_CLAUDE_CODE_VERSION_ENV_VAR]
     const versionResolution = resolveClaudeCodeVersion(rawVersionOverride)
     if (versionResolution.type === 'invalid') {
-      console.error(`[ex-machina.anthropic-auth] ${versionResolution.error}`)
+      console.error(`[${PLUGIN_ID}] ${versionResolution.error}`)
     } else if (versionResolution.type === 'outdated') {
-      console.warn(`[ex-machina.anthropic-auth] ${versionResolution.warning}`)
+      console.warn(`[${PLUGIN_ID}] ${versionResolution.warning}`)
     }
     let claudeCodeVersion =
       versionResolution.type === 'invalid'

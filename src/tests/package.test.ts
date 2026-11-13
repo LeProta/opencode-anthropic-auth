@@ -5,7 +5,7 @@ describe('published plugin entrypoint', () => {
     const module = await import('../../dist/index.js')
 
     expect(Object.keys(module)).toEqual(['default'])
-    expect(module.default.id).toBe('ex-machina.anthropic-auth')
+    expect(module.default.id).toBe('leprota.anthropic-auth')
     expect(module.default.setup).toBeFunction()
   })
 })

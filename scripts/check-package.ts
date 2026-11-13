@@ -114,7 +114,7 @@ try {
   const plugin = module.default
   if (
     !isRecord(plugin) ||
-    plugin.id !== 'ex-machina.anthropic-auth' ||
+    plugin.id !== 'leprota.anthropic-auth' ||
     typeof plugin.setup !== 'function'
   ) {
     fail('packed entrypoint is not the OpenCode v2 Anthropic auth plugin.')

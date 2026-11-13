@@ -82,7 +82,7 @@ function createMockContext() {
 
 describe('default export', () => {
   test('is a v2 plugin definition with an id and a setup function', () => {
-    expect(plugin.id).toBe('ex-machina.anthropic-auth')
+    expect(plugin.id).toBe('leprota.anthropic-auth')
     expect(plugin.setup).toBeFunction()
   })
 })
