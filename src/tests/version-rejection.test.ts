@@ -107,4 +107,25 @@ describe('Claude Code version rejection', () => {
       ),
     ).resolves.toBeUndefined()
   })
+
+  test('ignores an oversized 400 body without a content-length instead of hanging', async () => {
+    const chunk = new TextEncoder().encode('x'.repeat(8 * 1024))
+    let sent = 0
+    const response = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent++ < 8) controller.enqueue(chunk)
+          else controller.close()
+        },
+      }),
+      { status: 400, headers: { 'content-type': 'application/json' } },
+    )
+    const outcome = await Promise.race([
+      detectClaudeCodeVersionRejection(response, '2.1.280'),
+      new Promise((resolve) => setTimeout(() => resolve('hung'), 3000)),
+    ])
+    expect(outcome).toBeUndefined()
+    // The provider still receives the whole original body.
+    expect((await response.text()).length).toBe(8 * 8 * 1024)
+  })
 })

@@ -46,10 +46,7 @@ export async function readBoundedText(
       if (done) break
 
       total += value.byteLength
-      if (total > limit) {
-        await reader.cancel().catch(() => {})
-        throw new BodyLimitError(label, limit)
-      }
+      if (total > limit) throw new BodyLimitError(label, limit)
       try {
         parts.push(decoder.decode(value, { stream: true }))
       } catch {
@@ -63,7 +60,9 @@ export async function readBoundedText(
     }
     return parts.join('')
   } catch (error) {
-    await reader.cancel(error).catch(() => {})
+    // Not awaited: on a cloned body (one branch of a tee) cancel() settles only
+    // once the other branch is cancelled or the source ends.
+    reader.cancel(error).catch(() => {})
     throw error
   } finally {
     signal?.removeEventListener('abort', onAbort)
