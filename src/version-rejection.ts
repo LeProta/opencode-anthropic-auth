@@ -6,6 +6,8 @@ import {
 
 const VERSION_TOO_OLD_CODE = 'claude_code_version_too_old'
 const MAX_REJECTION_BODY_BYTES = 16 * 1024
+/** Same budget as the 429 diagnostic probe: a stalled 400 body must not hold the response. */
+const REJECTION_READ_TIMEOUT_MS = 1000
 const MAX_REJECTION_MESSAGE_LENGTH = 1024
 const VERSION_REJECTION_PATTERN =
   /^Claude Code ([0-9.]{1,64}) does not support this model; version ([0-9.]{1,64}) or newer is required\./
@@ -95,6 +97,7 @@ export async function detectClaudeCodeVersionRejection(
       response.clone().body,
       MAX_REJECTION_BODY_BYTES,
       'Anthropic version rejection',
+      AbortSignal.timeout(REJECTION_READ_TIMEOUT_MS),
     )
     return parseClaudeCodeVersionRejection(body, reportedVersion)
   } catch {

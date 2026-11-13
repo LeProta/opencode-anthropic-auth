@@ -69,6 +69,26 @@ describe('Claude Code version rejection', () => {
     expect(await response.text()).toBe(body)
   })
 
+  test('gives up on a 400 body that never arrives instead of hanging', async () => {
+    let cancelled = false
+    const stalled = new ReadableStream<Uint8Array>({
+      pull: () => new Promise(() => {}),
+      cancel: () => {
+        cancelled = true
+      },
+    })
+    const response = new Response(stalled, {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    })
+    const started = Date.now()
+    await expect(
+      detectClaudeCodeVersionRejection(response, '2.1.280'),
+    ).resolves.toBeUndefined()
+    expect(Date.now() - started).toBeLessThan(3000)
+    expect(cancelled).toBe(false) // only the inspected clone is cancelled
+  })
+
   test('ignores non-400 and oversized responses', async () => {
     await expect(
       detectClaudeCodeVersionRejection(

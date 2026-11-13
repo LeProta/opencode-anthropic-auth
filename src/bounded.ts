@@ -23,6 +23,8 @@ export async function readBoundedText(
   body: ReadableStream<Uint8Array> | null,
   limit: number,
   label: string,
+  /** Aborting cancels the body and rejects, so a stalled body cannot hang the caller. */
+  signal?: AbortSignal,
 ): Promise<string> {
   if (!body) return ''
 
@@ -30,10 +32,17 @@ export async function readBoundedText(
   const decoder = new TextDecoder('utf-8', { fatal: true })
   const parts: string[] = []
   let total = 0
+  const onAbort = () => {
+    reader.cancel(signal?.reason).catch(() => {})
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
 
   try {
     while (true) {
+      signal?.throwIfAborted()
       const { done, value } = await reader.read()
+      // A cancelled read resolves as done: report the abort, not a short body.
+      signal?.throwIfAborted()
       if (done) break
 
       total += value.byteLength
@@ -57,6 +66,7 @@ export async function readBoundedText(
     await reader.cancel(error).catch(() => {})
     throw error
   } finally {
+    signal?.removeEventListener('abort', onAbort)
     reader.releaseLock()
   }
 }
