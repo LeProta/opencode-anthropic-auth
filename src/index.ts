@@ -19,6 +19,13 @@ import {
   REQUIRED_BETAS,
 } from './constants.ts'
 import {
+  captureRateLimitHeaders,
+  formatQuota,
+  isDebugEnabled,
+  QUOTA_STORAGE_KEY,
+  type RateLimitSnapshot,
+} from './quota.ts'
+import {
   createConnectionLabel,
   describeConnection,
   enhanceRateLimitResponse,
@@ -329,6 +336,21 @@ export default Plugin.define({
     const ownershipKey = randomBytes(32)
     let reconstructedAliasLookups = 0
     let setupActive = true
+    const eventAbort = new AbortController()
+    // Last rate-limit headers Anthropic sent (claude_quota / /cquota).
+    let lastRateLimit: RateLimitSnapshot | undefined
+    try {
+      const stored = (await ctx.storage?.get(QUOTA_STORAGE_KEY)) as
+        | RateLimitSnapshot
+        | undefined
+      if (stored && typeof stored.capturedAt === 'number')
+        lastRateLimit = stored
+    } catch {}
+    // Subscription login active: prices are zeroed (usage is the subscription's).
+    // Only needed to zero prices, so only asked when OpenCode lets us change them.
+    let oauthActive =
+      typeof ctx.provider?.transform === 'function' &&
+      !!(await resolveActiveOAuth(ctx).catch(() => undefined))
     const connectionByRequest = new WeakMap<Request, string>()
     const connectionByAuthorization = new Map<
       string,
@@ -765,6 +787,18 @@ export default Plugin.define({
         // A direct plugin-owned response survives a best-effort lease failure.
       }
       if (!ownedDirectly && !lease) return
+      const rateLimit = captureRateLimitHeaders(event.response)
+      if (rateLimit) {
+        lastRateLimit = rateLimit
+        void ctx.storage
+          ?.set(QUOTA_STORAGE_KEY, rateLimit as never)
+          .catch(() => {})
+      }
+      if (isDebugEnabled()) {
+        console.warn(
+          `[${PLUGIN_ID}] ${event.model.id} HTTP ${event.response.status} ${JSON.stringify(rateLimit?.headers ?? {})}`,
+        )
+      }
       if (!event.response.ok) {
         if (lease) releaseAliasLease(event.request, lease)
         if (!hasExplicitVersionOverride && event.response.status === 400) {
@@ -834,8 +868,88 @@ export default Plugin.define({
       }
     })
 
+    if (typeof ctx.provider?.transform === 'function') {
+      await ctx.provider.transform((draft) => {
+        const record = draft.get(INTEGRATION_ID)
+        if (!record || !oauthActive) return
+        for (const modelID of [...record.models.keys()]) {
+          draft.models.update(INTEGRATION_ID, modelID, (model) => {
+            model.cost = []
+          })
+        }
+      })
+    }
+
+    // Re-run the transform when the Anthropic login changes (sign-in, switch, API key).
+    if (typeof ctx.event?.subscribe === 'function') {
+      const stream = ctx.event.subscribe({ signal: eventAbort.signal })
+      void (async () => {
+        try {
+          for await (const event of stream) {
+            if (
+              event.type !== 'credential.updated' &&
+              event.type !== 'credential.switched'
+            ) {
+              continue
+            }
+            const integrationID = (
+              event as { data?: { integrationID?: string } }
+            ).data?.integrationID
+            if (integrationID && integrationID !== INTEGRATION_ID) continue
+            const next = !!(await resolveActiveOAuth(ctx).catch(
+              () => undefined,
+            ))
+            if (next !== oauthActive && setupActive) {
+              oauthActive = next
+              await ctx.provider?.reload?.()
+            }
+          }
+        } catch {
+          // The subscription ends when the plugin is disposed.
+        }
+      })()
+    }
+
+    const quotaText = () => formatQuota(lastRateLimit)
+    if (typeof ctx.tool?.transform === 'function') {
+      await ctx.tool.transform((draft) => {
+        draft.add({
+          name: 'claude_quota',
+          description:
+            'Show the Claude Pro/Max subscription quota Anthropic reported on its last response (5-hour and weekly windows).',
+          input: {
+            type: 'object',
+            properties: {},
+            additionalProperties: false,
+          } as const,
+          execute: async () => ({
+            content: quotaText(),
+            metadata: { ok: !!lastRateLimit },
+          }),
+        })
+      })
+    }
+    if (typeof ctx.command?.transform === 'function') {
+      await ctx.command.transform((draft) => {
+        draft.add({
+          name: 'cquota',
+          description: 'Show Claude subscription quota',
+          execute: async (input) => {
+            if (typeof ctx.session.synthetic !== 'function') return
+            await ctx.session.synthetic({
+              sessionID: input.sessionID,
+              text: quotaText(),
+              delivery: input.delivery,
+              resume: false,
+            })
+          },
+        })
+      })
+    }
+
     return () => {
       setupActive = false
+      eventAbort.abort()
       for (const lease of aliasesByFingerprint.values()) retireAliasLease(lease)
       aliasesByFingerprint.clear()
       for (const entry of connectionByAuthorization.values()) {
