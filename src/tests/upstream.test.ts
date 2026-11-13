@@ -103,4 +103,32 @@ describe('checkUpstreamUpdate', () => {
     })
     expect(inits).toHaveLength(UPSTREAM_SOURCES.length + 1)
   })
+
+  test('stops reading an answer that grows past the size limit', async () => {
+    let pulls = 0
+    let cancelled = false
+    const endless = () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            pulls++
+            controller.enqueue(new Uint8Array(64 * 1024).fill(0x20))
+          },
+          cancel() {
+            cancelled = true
+          },
+        }),
+      )
+    const notices: string[] = []
+    await checkUpstreamUpdate('2.1.280', (m) => notices.push(m), {
+      env: {},
+      fetch: (async (input: string | URL | Request) =>
+        String(input).includes('registry.npmjs.org')
+          ? endless()
+          : new Response('[]')) as unknown as typeof fetch,
+    })
+    expect(notices).toEqual([])
+    expect(cancelled).toBe(true)
+    expect(pulls).toBeLessThan(16) // 256 KiB limit, 64 KiB chunks
+  })
 })

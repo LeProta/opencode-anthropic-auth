@@ -1,3 +1,4 @@
+import { readBoundedText } from './bounded.ts'
 import { compareClaudeCodeVersions } from './config.ts'
 
 /**
@@ -103,9 +104,10 @@ async function getJson(
     await response.body?.cancel().catch(() => {})
     return undefined
   }
-  const text = await response.text()
-  if (text.length > MAX_JSON_BYTES) return undefined
-  return JSON.parse(text)
+  // Bounded while reading: response.text() would buffer whatever the server sends.
+  return JSON.parse(
+    await readBoundedText(response.body, MAX_JSON_BYTES, 'Upstream check'),
+  )
 }
 
 async function fetchState(
