@@ -109,6 +109,40 @@ async function parseTokenResponse(response: Response) {
   }
 }
 
+/**
+ * Failures that happen before any byte of the request leaves the machine (no
+ * connection, no DNS answer, no route). The token endpoint never saw the
+ * refresh token, so it cannot have been consumed and may be sent again.
+ */
+const UNDELIVERED_NETWORK_CODES = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ENETUNREACH',
+  'EHOSTUNREACH',
+  'UND_ERR_CONNECT_TIMEOUT',
+])
+
+export function isUndeliveredNetworkError(error: unknown): boolean {
+  const seen = new WeakSet<object>()
+  let current: unknown = error
+  for (let depth = 0; depth < 8; depth++) {
+    if (typeof current !== 'object' || current === null) return false
+    if (seen.has(current)) return false
+    seen.add(current)
+    if (
+      'code' in current &&
+      typeof current.code === 'string' &&
+      UNDELIVERED_NETWORK_CODES.has(current.code)
+    ) {
+      return true
+    }
+    if (!('cause' in current)) return false
+    current = current.cause
+  }
+  return false
+}
+
 function isTransientNetworkError(error: unknown): boolean {
   const seen = new WeakSet<object>()
   let current: unknown = error
@@ -315,7 +349,8 @@ export async function exchange(
 
 export type RefreshResult =
   | { type: 'success'; refresh: string; access: string; expires: number }
-  | { type: 'failed'; status: number }
+  /** `delivered: false` means the request never left the machine (see isUndeliveredNetworkError). */
+  | { type: 'failed'; status: number; delivered?: false }
 
 /**
  * Exchange a refresh token for a new access/refresh token pair.
@@ -360,6 +395,9 @@ export async function refreshToken(
       ...tokens,
     }
   } catch (error) {
+    if (isUndeliveredNetworkError(error)) {
+      return { type: 'failed', status: 0, delivered: false }
+    }
     if (isTransientNetworkError(error)) return { type: 'failed', status: 0 }
     throw error
   }

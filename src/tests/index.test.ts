@@ -511,6 +511,55 @@ describe('integration registration', () => {
     }
   })
 
+  test.each([
+    ['ECONNREFUSED'],
+    ['ENOTFOUND'],
+    ['EAI_AGAIN'],
+  ])('retries a refresh that never left the machine (%s)', async (code) => {
+    const { ctx, integrationMethods } = createMockContext()
+    let tokenRequests = 0
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(() => {
+      tokenRequests++
+      if (tokenRequests === 1) {
+        return Promise.reject(
+          Object.assign(new TypeError('Unable to connect'), { code }),
+        )
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            refresh_token: 'rotated-after-offline',
+            access_token: 'access-after-offline',
+            expires_in: 3600,
+          }),
+          { status: 200 },
+        ),
+      )
+    }) as unknown as typeof fetch
+
+    try {
+      await plugin.setup(ctx as any)
+      const registration = integrationMethods[0] as any
+      const credential = {
+        type: 'oauth' as const,
+        methodID: 'claude-max',
+        refresh: `offline-${code}`,
+        access: 'old-access',
+        expires: Date.now() - 1000,
+      }
+
+      await expect(registration.refresh(credential)).rejects.toThrow(
+        'could not reach Anthropic',
+      )
+      const rotated = await registration.refresh(credential)
+      expect(rotated.access).toBe('access-after-offline')
+      expect(tokenRequests).toBe(2)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('a deterministic 400 refresh failure may start a later request', async () => {
     const { ctx, integrationMethods } = createMockContext()
     const refresh = `deterministic-${crypto.randomUUID()}`

@@ -565,6 +565,12 @@ export default Plugin.define({
             throw error
           }
           if (result.type === 'failed') {
+            // Never sent, so never consumed: safe to retry on the next request.
+            if (result.delivered === false) {
+              throw new Error(
+                'Anthropic token refresh could not reach Anthropic (no connection); it will be retried on the next request',
+              )
+            }
             if (isAmbiguousRefreshFailure(result.status)) {
               blockRefreshToken(key, result.status)
             }
