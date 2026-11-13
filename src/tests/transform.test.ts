@@ -630,6 +630,31 @@ describe('sanitizeSystemText', () => {
     `)
   })
 
+  test("keeps the user's own system text that links to OpenCode docs", () => {
+    const result = sanitizeSystemText(dedent`
+      You are OpenCode, the best coding agent on the planet.
+
+      Check out the docs at https://opencode.ai/docs for more info.
+
+      Here is some useful information about the environment you are running in:
+      <env>
+      Platform: linux
+      </env>
+
+      Never deploy to production. Rules: https://opencode.ai/docs/rules
+    `)
+    expect(result).not.toContain('Check out the docs')
+    expect(result).toContain(
+      'Never deploy to production. Rules: https://opencode.ai/docs/rules',
+    )
+  })
+
+  test('leaves a prompt without the OpenCode identity untouched (agent prompt)', () => {
+    const agentPrompt =
+      'Never touch production.\n\nSee https://opencode.ai/docs/agents for the agent format.'
+    expect(sanitizeSystemText(agentPrompt)).toBe(agentPrompt)
+  })
+
   test('removes paragraph containing feedback URL anchor', () => {
     const result = sanitizeSystemText(dedent`
       You are OpenCode, the best coding agent on the planet.
@@ -770,7 +795,7 @@ describe('prependClaudeCodeIdentity', () => {
   test('does not emit empty text blocks after sanitization', () => {
     const result = prependClaudeCodeIdentity([
       '',
-      'https://github.com/anomalyco/opencode',
+      'You are OpenCode, the best coding agent on the planet.',
       { type: 'text', text: '' },
       {
         type: 'text',
@@ -1005,7 +1030,10 @@ describe('rewriteRequestBody', () => {
           messages: [{ role: 'user', content: 'hi' }],
           system: [
             '',
-            { type: 'text', text: 'https://opencode.ai/docs' },
+            {
+              type: 'text',
+              text: 'You are OpenCode, the best coding agent on the planet.',
+            },
             { type: 'text', text: '' },
             [],
             { type: 'image', source: { type: 'base64', data: 'x' } },
