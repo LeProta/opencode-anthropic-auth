@@ -321,6 +321,17 @@ export function prefixToolNames(
     })
   }
 
+  // A forced tool must name the aliased definition, or the request names a tool that no longer exists.
+  const toolChoice = parsed.tool_choice
+  if (
+    isRecord(toolChoice) &&
+    toolChoice.type === 'tool' &&
+    typeof toolChoice.name === 'string' &&
+    toolChoice.name.length > 0
+  ) {
+    parsed.tool_choice = { ...toolChoice, name: prefix(toolChoice.name) }
+  }
+
   return JSON.stringify(parsed)
 }
 

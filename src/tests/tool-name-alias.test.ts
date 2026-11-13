@@ -65,6 +65,38 @@ describe('ToolNameAliasTable', () => {
     expect(() => aliases.decode(shortAlias('Read'))).toThrow()
   })
 
+  test('aliases a forced tool_choice like its definition, once', () => {
+    const aliases = new ToolNameAliasTable()
+    const once = JSON.parse(
+      prefixToolNames(
+        {
+          tools: [{ name: 'lookup' }],
+          tool_choice: {
+            type: 'tool',
+            name: 'lookup',
+            disable_parallel_tool_use: true,
+          },
+        },
+        false,
+        aliases,
+      ),
+    )
+    expect(once.tool_choice).toEqual({
+      type: 'tool',
+      name: once.tools[0].name,
+      disable_parallel_tool_use: true,
+    })
+    // A request that is already rewritten keeps its alias.
+    const twice = JSON.parse(prefixToolNames(once, true, aliases))
+    expect(twice.tool_choice.name).toBe(shortAlias('lookup'))
+    // Other choices carry no name and are left alone.
+    const auto = JSON.parse(
+      prefixToolNames({ tool_choice: { type: 'auto' } }, false, aliases),
+    )
+    expect(auto.tool_choice).toEqual({ type: 'auto' })
+    aliases.dispose()
+  })
+
   test('uses UTF-8 base64url aliases for short names', () => {
     const aliases = new ToolNameAliasTable()
     const name = 'Read/é'
