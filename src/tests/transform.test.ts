@@ -585,6 +585,32 @@ describe('sanitizeSystemText', () => {
     `)
   })
 
+  test('keeps the rest of a CRLF prompt when removing the identity', () => {
+    const result = sanitizeSystemText(
+      'You are OpenCode.\r\n\r\nKeep this rule.\r\n\r\nAnd this one.',
+    )
+    expect(result).toBe('Keep this rule.\n\nAnd this one.')
+  })
+
+  test('never removes the user instruction files, even when they cite OpenCode docs', () => {
+    const result = sanitizeSystemText(dedent`
+      You are OpenCode, the best coding agent on the planet.
+
+      Use WebFetch on https://opencode.ai/docs for OpenCode questions.
+
+      Instructions from: /home/u/project/AGENTS.md
+      Always run the tests. See https://opencode.ai/docs/rules for the format.
+
+      You are OpenCode's reviewer persona when asked to review.
+    `)
+    expect(result).toBe(dedent`
+      Instructions from: /home/u/project/AGENTS.md
+      Always run the tests. See https://opencode.ai/docs/rules for the format.
+
+      You are OpenCode's reviewer persona when asked to review.
+    `)
+  })
+
   test('removes paragraph containing feedback URL anchor', () => {
     const result = sanitizeSystemText(dedent`
       You are OpenCode, the best coding agent on the planet.

@@ -823,10 +823,22 @@ export function rewriteUrl(input: FetchInput): {
  * This approach is resilient to upstream rewording of the OpenCode
  * prompt — as long as the anchor strings (URLs, etc.) still appear
  * somewhere in the paragraph, the removal works.
+ *
+ * Only OpenCode's own prompt is rewritten: from the first
+ * "Instructions from: <path>" block on, the text is the user's own
+ * instruction files (AGENTS.md, CLAUDE.md…) and is kept verbatim.
  */
 export function sanitizeSystemText(text: string): string {
+  // CRLF instruction files (Windows) hid every paragraph break, so one
+  // identity match dropped the whole prompt.
+  const normalized = text.replace(/\r\n?/g, '\n')
+  const userStart = normalized.search(USER_INSTRUCTIONS_PATTERN)
+  const opencodePart =
+    userStart === -1 ? normalized : normalized.slice(0, userStart)
+  const userPart = userStart === -1 ? '' : normalized.slice(userStart)
+
   // Split into paragraphs (separated by one or more blank lines)
-  const paragraphs = text.split(/\n\n+/)
+  const paragraphs = opencodePart.split(/\n\n+/)
 
   const filtered = paragraphs.filter((paragraph) => {
     if (paragraph.includes(OPENCODE_IDENTITY_PREFIX)) {
@@ -849,8 +861,17 @@ export function sanitizeSystemText(text: string): string {
     result = result.replace(rule.match, rule.replacement)
   }
 
-  return result.trim()
+  const head = result.trim()
+  const tail = userPart.trimEnd()
+  if (!tail) return head
+  if (!head) return tail
+  // Keep the separator OpenCode put before the first instruction file.
+  const separator = /\s*$/.exec(opencodePart)?.[0] || '\n'
+  return `${head}${separator}${tail}`
 }
+
+/** Start of OpenCode's block for a user instruction file, at a line start. */
+const USER_INSTRUCTIONS_PATTERN = /(?<=^|\n)Instructions from: /
 
 type SystemBlock = { type: string; text: string; [k: string]: unknown }
 
