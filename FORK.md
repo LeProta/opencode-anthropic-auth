@@ -19,10 +19,14 @@ Version `2.1.0` renames `2.0.0-next.7-leprota.4` without runtime changes. Existi
 tags remain available. The ex-machina base is recorded in [UPSTREAM.md](UPSTREAM.md),
 not in the fork's version suffix.
 
+Version `2.1.1` fixes: a 400 answer over 16 KB could hold the response forever, the
+upstream check read its answer unbounded, and a 429 whose subscription window is
+`rejected` was retried.
+
 ## Install
 
 ```bash
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.1.0
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.1.1
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:
@@ -55,6 +59,12 @@ Fixes:
   arrives, instead of holding the response.
 - A failed code exchange says why (bad input, other sign-in, refused code, network,
   bad answer).
+- Reading a copy of a body never waits for its cancellation: a 400 answer over 16 KB
+  without a `content-length` (or with invalid UTF-8) used to hold the response hook
+  forever, past the 1 s budget above.
+- A 429 whose `anthropic-ratelimit-unified-status` header is `rejected` is reported as a
+  subscription limit and is not retried, whatever the wording of the message.
+- The daily upstream check stops reading an answer at 256 KiB instead of buffering it.
 - `package.json` has an `exports` map, which OpenCode 2.2.7 needs to load a local
   `file://` checkout.
 
@@ -96,10 +106,15 @@ prerelease channel, not for these fork releases.
 
 ```bash
 bun install --ignore-scripts
-bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first
+bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first; see below for Bun
 bun run bundle                               # rebuild dist/ and commit it
 bun run check:upstream                      # upstream commits not reviewed yet
 ```
+
+Run the tests with the Bun that OpenCode embeds (1.4.4 for OpenCode 2.2.7). With the
+pinned Bun 1.3.14 on Windows, `bun test` never finishes `version-rejection.test.ts`
+(the test runner hangs on a stream that never ends; the plugin code itself returns).
+`.gitattributes` checks the sources out with LF so `bun check` passes on Windows.
 
 To take ex-machina's changes: merge `v2/main` from the upstream remote, run the tests,
 rebuild `dist/`, then `bun run check:upstream -- --accept`.

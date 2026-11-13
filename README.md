@@ -1,7 +1,7 @@
 # OpenCode Anthropic Auth Plugin
 
 > [!NOTE]
-> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.1.0`.
+> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.1.1`.
 > What differs from ex-machina, and why: [FORK.md](FORK.md) and [UPSTREAM.md](UPSTREAM.md).
 > Fork versions use `MAJOR.MINOR.PATCH`, like the Gemini fork; the upstream release channels below describe ex-machina's packages.
 
