@@ -40,7 +40,7 @@
     "check:upstream": "bun scripts/check-upstream.ts"
   },
   "dependencies": {
-    "@opencode/plugin": "2.0.4",
+    "@opencode/plugin": "2.2.6",
     "@streamparser/json": "0.0.26"
   },
   "devDependencies": {
