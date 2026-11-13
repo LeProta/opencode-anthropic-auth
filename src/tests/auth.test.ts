@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
-import { authorize, exchange, refreshToken } from '../auth'
+import {
+  authorize,
+  exchange,
+  isUndeliveredNetworkError,
+  refreshToken,
+} from '../auth'
 import { CLIENT_ID, CODE_CALLBACK_URL, OAUTH_SCOPES } from '../constants'
 
 afterEach(() => {
@@ -668,5 +673,37 @@ describe('refreshToken', () => {
 
     expect(result).toEqual({ type: 'failed', status: 0 })
     expect(attempts).toBe(1)
+  })
+})
+
+describe('isUndeliveredNetworkError', () => {
+  const err = (code: string | undefined, cause?: unknown, name = 'Error') =>
+    Object.assign(
+      new Error(code ?? 'x'),
+      { name },
+      code ? { code } : {},
+      cause ? { cause } : {},
+    )
+
+  test('accepts a chain that only says "never sent"', () => {
+    expect(isUndeliveredNetworkError(err(undefined, err('ECONNREFUSED')))).toBe(
+      true,
+    )
+    expect(isUndeliveredNetworkError(err('ENOTFOUND'))).toBe(true)
+  })
+
+  test('refuses when any level of the chain is ambiguous', () => {
+    expect(
+      isUndeliveredNetworkError(err('ECONNRESET', err('ECONNREFUSED'))),
+    ).toBe(false)
+    expect(
+      isUndeliveredNetworkError(err('ECONNREFUSED', err('UND_ERR_SOCKET'))),
+    ).toBe(false)
+    expect(
+      isUndeliveredNetworkError(
+        err(undefined, err('ECONNREFUSED'), 'TimeoutError'),
+      ),
+    ).toBe(false)
+    expect(isUndeliveredNetworkError(err(undefined))).toBe(false)
   })
 })

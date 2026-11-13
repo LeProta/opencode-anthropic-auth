@@ -123,21 +123,31 @@ const UNDELIVERED_NETWORK_CODES = new Set([
   'UND_ERR_CONNECT_TIMEOUT',
 ])
 
+/**
+ * True only when the whole cause chain says "never sent": one undelivered code
+ * and no other error code, abort or timeout at any level. Anything ambiguous
+ * keeps ex-machina's replay protection.
+ */
 export function isUndeliveredNetworkError(error: unknown): boolean {
   const seen = new WeakSet<object>()
   let current: unknown = error
+  let undelivered = false
   for (let depth = 0; depth < 8; depth++) {
-    if (typeof current !== 'object' || current === null) return false
-    if (seen.has(current)) return false
+    if (typeof current !== 'object' || current === null || seen.has(current)) {
+      return undelivered
+    }
     seen.add(current)
     if (
-      'code' in current &&
-      typeof current.code === 'string' &&
-      UNDELIVERED_NETWORK_CODES.has(current.code)
+      'name' in current &&
+      (current.name === 'AbortError' || current.name === 'TimeoutError')
     ) {
-      return true
+      return false
     }
-    if (!('cause' in current)) return false
+    if ('code' in current && typeof current.code === 'string') {
+      if (!UNDELIVERED_NETWORK_CODES.has(current.code)) return false
+      undelivered = true
+    }
+    if (!('cause' in current)) return undelivered
     current = current.cause
   }
   return false
