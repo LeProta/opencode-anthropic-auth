@@ -1,6 +1,11 @@
 import { createHash, createHmac, type Hmac, randomBytes } from 'node:crypto'
 import { type Credential, Plugin } from '@opencode/plugin'
-import { authorize, exchange, refreshToken } from './auth.ts'
+import {
+  authorize,
+  exchange,
+  exchangeFailureMessage,
+  refreshToken,
+} from './auth.ts'
 import { BodyLimitError, contentLength, readBoundedText } from './bounded.ts'
 import {
   ANTHROPIC_CLAUDE_CODE_VERSION_ENV_VAR,
@@ -625,10 +630,7 @@ export default Plugin.define({
                 result.state,
               )
               if (exchanged.type === 'failed') {
-                throw new Error(
-                  'Failed to exchange the Claude Pro/Max authorization code. ' +
-                    'Double-check that you pasted the full code and try again.',
-                )
+                throw new Error(exchangeFailureMessage(exchanged.reason))
               }
               return toCredential(exchanged)
             },

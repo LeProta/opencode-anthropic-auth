@@ -260,19 +260,19 @@ async function exchangeCode(
       }),
     })
   } catch (error) {
-    if (isTransientNetworkError(error)) return { type: 'failed' }
+    if (isTransientNetworkError(error) || isUndeliveredNetworkError(error)) {
+      return { type: 'failed', reason: 'network' }
+    }
     throw error
   }
 
   if (!result.ok) {
     await result.body?.cancel().catch(() => {})
-    return {
-      type: 'failed',
-    }
+    return { type: 'failed', reason: 'rejected' }
   }
 
   const tokens = await parseTokenResponse(result)
-  if (!tokens) return { type: 'failed' }
+  if (!tokens) return { type: 'failed', reason: 'invalid_response' }
 
   return {
     type: 'success',
@@ -306,7 +306,15 @@ export async function authorize(
 
 export type ExchangeResult =
   | { type: 'success'; refresh: string; access: string; expires: number }
-  | { type: 'failed' }
+  | { type: 'failed'; reason: ExchangeFailureReason }
+
+/** Why a code exchange failed, safe to show (never echoes the code or a token). */
+export type ExchangeFailureReason =
+  | 'invalid_input'
+  | 'state_mismatch'
+  | 'rejected'
+  | 'network'
+  | 'invalid_response'
 
 export async function exchange(
   input: string,
@@ -321,27 +329,21 @@ export async function exchange(
     (expectedState !== undefined &&
       !isBoundedUtf8(expectedState, MAX_TOKEN_LENGTH))
   ) {
-    return { type: 'failed' }
+    return { type: 'failed', reason: 'invalid_input' }
   }
 
   const callback = parseCallbackInput(input)
-  if (!callback) {
-    return {
-      type: 'failed',
-    }
-  }
+  if (!callback) return { type: 'failed', reason: 'invalid_input' }
 
   if (expectedState && callback.state !== expectedState) {
-    return {
-      type: 'failed',
-    }
+    return { type: 'failed', reason: 'state_mismatch' }
   }
 
   if (
     !isBoundedUtf8(callback.code, MAX_TOKEN_LENGTH) ||
     !isBoundedUtf8(callback.state, MAX_TOKEN_LENGTH)
   ) {
-    return { type: 'failed' }
+    return { type: 'failed', reason: 'invalid_input' }
   }
 
   return exchangeCode(callback, verifier, redirectUri)
@@ -401,4 +403,20 @@ export async function refreshToken(
     if (isTransientNetworkError(error)) return { type: 'failed', status: 0 }
     throw error
   }
+}
+
+const EXCHANGE_FAILURE_HINTS: Record<ExchangeFailureReason, string> = {
+  invalid_input:
+    'The pasted text is not a Claude authorization code. Paste the whole code (it contains a #) or the full callback URL.',
+  state_mismatch:
+    'The pasted code belongs to another sign-in attempt. Start the sign-in again and paste the code from that page.',
+  rejected:
+    'Anthropic rejected the code (already used or expired). Start the sign-in again.',
+  network: 'Could not reach Anthropic. Check the connection and try again.',
+  invalid_response:
+    'Anthropic answered with an unexpected token response. Try again later.',
+}
+
+export function exchangeFailureMessage(reason: ExchangeFailureReason): string {
+  return `Failed to exchange the Claude Pro/Max authorization code: ${EXCHANGE_FAILURE_HINTS[reason]}`
 }

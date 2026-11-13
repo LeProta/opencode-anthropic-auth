@@ -154,7 +154,7 @@ describe('exchange', () => {
         CODE_CALLBACK_URL,
         'state',
       ),
-    ).toEqual({ type: 'failed' })
+    ).toMatchObject({ type: 'failed' })
     expect(
       await exchange(
         'code#state',
@@ -162,7 +162,7 @@ describe('exchange', () => {
         CODE_CALLBACK_URL,
         'state',
       ),
-    ).toEqual({ type: 'failed' })
+    ).toMatchObject({ type: 'failed' })
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
@@ -177,7 +177,7 @@ describe('exchange', () => {
         CODE_CALLBACK_URL,
         'state',
       ),
-    ).toEqual({ type: 'failed' })
+    ).toMatchObject({ type: 'failed' })
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
@@ -235,7 +235,7 @@ describe('exchange', () => {
       'state',
     )
 
-    expect(result).toEqual({ type: 'failed' })
+    expect(result).toMatchObject({ type: 'failed' })
     expect(timeoutSpy).toHaveBeenCalledWith(30_000)
   })
 
@@ -254,7 +254,7 @@ describe('exchange', () => {
       'state',
     )
 
-    expect(result).toEqual({ type: 'failed' })
+    expect(result).toMatchObject({ type: 'failed' })
   })
 
   test('rejects oversized token values', async () => {
@@ -273,7 +273,7 @@ describe('exchange', () => {
       'state',
     )
 
-    expect(result).toEqual({ type: 'failed' })
+    expect(result).toMatchObject({ type: 'failed' })
   })
 
   test.each([
@@ -291,7 +291,7 @@ describe('exchange', () => {
 
     expect(
       await exchange('code#state', 'verifier', CODE_CALLBACK_URL, 'state'),
-    ).toEqual({ type: 'failed' })
+    ).toMatchObject({ type: 'failed' })
   })
 
   test('rejects malformed UTF-8 in a token response', async () => {
@@ -306,7 +306,7 @@ describe('exchange', () => {
       'state',
     )
 
-    expect(result).toEqual({ type: 'failed' })
+    expect(result).toMatchObject({ type: 'failed' })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 })
