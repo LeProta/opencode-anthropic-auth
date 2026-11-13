@@ -448,7 +448,14 @@ export async function enhanceRateLimitResponse(
     return { response: probe.passthrough(), category: 'unknown-rate-limit' }
   }
 
-  const category = classifyRateLimit(error.message, error.type)
+  const worded = classifyRateLimit(error.message, error.type)
+  // Anthropic's own verdict settles ambiguous wording: a 429 whose unified
+  // (subscription) window is "rejected" is a quota block, not a blip to retry.
+  const category =
+    (worded === 'transient-rate-limit' || worded === 'unknown-rate-limit') &&
+    response.headers.get('anthropic-ratelimit-unified-status') === 'rejected'
+      ? 'subscription-usage'
+      : worded
   const headers = headersAfterBodyTransform(response.headers)
   headers.set('content-type', 'application/json')
   if (category === 'subscription-usage' || category === 'fast-mode-credits') {

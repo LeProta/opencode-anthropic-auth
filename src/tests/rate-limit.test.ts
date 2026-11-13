@@ -145,6 +145,35 @@ describe('Anthropic 429 diagnostics', () => {
     expect(body.error.message).toContain('category=transient-rate-limit')
   })
 
+  test('does not retry ambiguous wording once the subscription window is rejected', async () => {
+    const original = Response.json(
+      {
+        type: 'error',
+        error: {
+          type: 'rate_limit_error',
+          message:
+            "This request would exceed your account's rate limit. Please try again later.",
+        },
+      },
+      {
+        status: 429,
+        headers: {
+          'retry-after': '7200',
+          'anthropic-ratelimit-unified-status': 'rejected',
+        },
+      },
+    )
+
+    const result = await enhanceRateLimitResponse(original, connection)
+    const body = (await result.response.json()) as {
+      error: { message: string }
+    }
+    expect(result.category).toBe('subscription-usage')
+    expect(result.response.headers.get('x-should-retry')).toBe('false')
+    expect(isSubscriptionUsageDiagnostic(body.error.message)).toBe(true)
+    expect(body.error.message).toContain('retry-after=7200s')
+  })
+
   test('treats extra-usage requirements as a structural usage block', async () => {
     const original = Response.json(
       {

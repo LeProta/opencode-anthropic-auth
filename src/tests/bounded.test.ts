@@ -99,7 +99,11 @@ describe('readBoundedText', () => {
 
     test('rejects an oversized body instead of hanging', async () => {
       const response = new Response(
-        pulled([encoder.encode('123'), encoder.encode('45'), encoder.encode('6')]),
+        pulled([
+          encoder.encode('123'),
+          encoder.encode('45'),
+          encoder.encode('6'),
+        ]),
       )
       expect(
         await settled(readBoundedText(response.clone().body, 4, 'test body')),
