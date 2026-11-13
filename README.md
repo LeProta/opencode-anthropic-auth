@@ -1,7 +1,7 @@
 # OpenCode Anthropic Auth Plugin
 
 > [!NOTE]
-> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.1`.
+> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.2`.
 > What differs from ex-machina, and why: [FORK.md](FORK.md) and [UPSTREAM.md](UPSTREAM.md).
 
 [![OpenCode v1 — npm latest tag](https://img.shields.io/npm/v/%40ex-machina%2Fopencode-anthropic-auth/latest?label=OpenCode%20v1%20(latest))](https://www.npmjs.com/package/@ex-machina/opencode-anthropic-auth?activeTab=versions)

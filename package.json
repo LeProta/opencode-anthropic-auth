@@ -1,6 +1,6 @@
 {
   "name": "@ex-machina/opencode-anthropic-auth",
-  "version": "2.0.0-next.7-leprota.1",
+  "version": "2.0.0-next.7-leprota.2",
   "type": "module",
   "repository": {
     "type": "git",
@@ -23,19 +23,19 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "bundle": "tsc -p tsconfig.build.json",
     "dev": "bun scripts/dev.ts",
     "dev:clean": "bun scripts/dev-clean.ts",
     "extract": "bun scripts/extract-system-prompt.ts",
     "check": "bun turbo check:all",
     "test": "bun test",
     "types": "tsc",
-    "check:package": "bun run build && bun scripts/check-package.ts",
+    "check:package": "bun run bundle && bun scripts/check-package.ts",
     "format": "biome check --write --unsafe",
     "format:check": "biome format .",
     "lint": "biome lint --error-on-warnings .",
     "change": "changeset",
-    "release": "bun run build && bun change publish",
+    "release": "bun run bundle && bun change publish",
     "release:next": "bun scripts/validate-next-release.ts && bun run release",
     "check:upstream": "bun scripts/check-upstream.ts"
   },

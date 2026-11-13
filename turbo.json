@@ -8,16 +8,16 @@
   ],
   "tasks": {
     "check:all": {
-      "dependsOn": ["types", "build", "test", "format:check", "lint"]
+      "dependsOn": ["types", "bundle", "test", "format:check", "lint"]
     },
     "types": {
-      "dependsOn": ["build"]
+      "dependsOn": ["bundle"]
     },
-    "build": {
+    "bundle": {
       "outputs": ["dist/**"]
     },
     "test": {
-      "dependsOn": ["build"]
+      "dependsOn": ["bundle"]
     },
     "format:check": {},
     "lint": {}

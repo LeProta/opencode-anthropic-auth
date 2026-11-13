@@ -10,7 +10,7 @@ own commit so they can be offered upstream.
 ## Install
 
 ```bash
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.1
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.0.0-next.7-leprota.2
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:
@@ -67,7 +67,7 @@ Not implemented because they could not be verified: filtering models through
 ```bash
 bun install --ignore-scripts
 bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first
-bun run build                               # rebuild dist/ and commit it
+bun run bundle                               # rebuild dist/ and commit it
 bun run check:upstream                      # upstream commits not reviewed yet
 ```
 
