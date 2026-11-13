@@ -798,6 +798,13 @@ export function rewriteUrl(input: FetchInput): {
   const originalHref = requestUrl.href
 
   const baseUrl = resolveBaseUrl()
+  // A configured endpoint that fails validation must not silently fall back to the official API.
+  if (!baseUrl && process.env.ANTHROPIC_BASE_URL?.trim()) {
+    throw new Error(
+      'ANTHROPIC_BASE_URL is set but not usable: it must be an https:// URL ' +
+        '(or http:// on localhost) without a user name or password. Fix it or unset it.',
+    )
+  }
   if (baseUrl) {
     requestUrl.protocol = baseUrl.protocol
     requestUrl.host = baseUrl.host

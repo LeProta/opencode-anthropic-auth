@@ -353,8 +353,27 @@ describe('rewriteUrl', () => {
     'file:///etc/passwd',
     'http://user:pass@localhost:8080',
     'http://proxy.example.test',
-  ])('ignores invalid custom endpoint %s', (configured) => {
+  ])('refuses an invalid custom endpoint %s instead of rerouting', (configured) => {
     process.env.ANTHROPIC_BASE_URL = configured
+    expect(() => rewriteUrl('https://api.anthropic.com/v1/messages')).toThrow(
+      'ANTHROPIC_BASE_URL is set but not usable',
+    )
+  })
+
+  test('the error never echoes the configured value', () => {
+    process.env.ANTHROPIC_BASE_URL = 'http://user:hunter2@proxy.example.test'
+    let message = ''
+    try {
+      rewriteUrl('https://api.anthropic.com/v1/messages')
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toContain('ANTHROPIC_BASE_URL')
+    expect(message).not.toContain('hunter2')
+  })
+
+  test('a blank value is the same as unset', () => {
+    process.env.ANTHROPIC_BASE_URL = '   '
     const { input } = rewriteUrl('https://api.anthropic.com/v1/messages')
     expect(new URL(input.toString()).origin).toBe('https://api.anthropic.com')
   })
