@@ -7,7 +7,6 @@ import { CLAUDE_CODE_VERSION, formatUserAgent, REQUIRED_BETAS, } from "./constan
 import { captureRateLimitHeaders, formatQuota, isDebugEnabled, QUOTA_STORAGE_KEY, } from "./quota.js";
 import { createConnectionLabel, describeConnection, enhanceRateLimitResponse, foreignLoginMessage, } from "./rate-limit.js";
 import { createStrippedStream, headersAfterBodyTransform, isInsecure, isTrustedAnthropicUrl, mergeHeaders, rewriteRequestBody, rewriteUrl, setOAuthHeaders, ToolNameAliasTable, } from "./transform.js";
-import { checkUpstreamUpdate } from "./upstream.js";
 import { detectClaudeCodeVersionRejection } from "./version-rejection.js";
 const PLUGIN_ID = 'leprota.anthropic-auth';
 const INTEGRATION_ID = 'anthropic';
@@ -241,7 +240,6 @@ export default Plugin.define({
         // A valid explicit override is absolute. Automatic adoption is only the
         // fallback path for an unset (or malformed and therefore ignored) value.
         const hasExplicitVersionOverride = rawVersionOverride !== undefined && versionResolution.type !== 'invalid';
-        void checkUpstreamUpdate(claudeCodeVersion, (message) => console.warn(`[${PLUGIN_ID}] ${message}`), { storage: ctx.storage }).catch(() => { });
         // This set is only an at-most-once limiter. The exact response is marked
         // retryable below, so this key never authorizes an unrelated retry event.
         // On overflow, recovery fails closed rather than forgetting old entries.
