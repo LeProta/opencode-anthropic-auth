@@ -1,7 +1,8 @@
 # OpenCode Anthropic Auth Plugin
 
 > [!NOTE]
-> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.0`.
+> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.1`.
+> The fork supports Windows 11 only (see FORK.md); commands are written for PowerShell.
 > What differs from ex-machina, and why: [FORK.md](FORK.md) and [UPSTREAM.md](UPSTREAM.md).
 > Fork versions use `MAJOR.MINOR.PATCH`, like the Gemini fork; the upstream release channels below describe ex-machina's packages.
 
@@ -55,7 +56,7 @@ You can also write the moving tag explicitly as `@ex-machina/opencode-anthropic-
 
 For a stable setup, look up the exact version currently published on `latest`:
 
-```bash
+```powershell
 npm view @ex-machina/opencode-anthropic-auth dist-tags.latest
 ```
 
@@ -79,7 +80,7 @@ OpenCode v2 uses the plural `plugins` configuration key. Because npm's default t
 
 For a stable setup, look up the exact version currently published on `next`:
 
-```bash
+```powershell
 npm view @ex-machina/opencode-anthropic-auth dist-tags.next
 ```
 
@@ -156,7 +157,7 @@ Everything else in the system prompt is preserved: tone/style guidance, task man
 
 Use `bun run dev` to test plugin changes locally without publishing to npm:
 
-```bash
+```powershell
 bun run dev
 ```
 
@@ -175,14 +176,14 @@ Edits to `src/` trigger a rebuild; restart the corresponding OpenCode version ag
 
 You can confirm that the v2 plugin loaded through the OpenCode v2 API:
 
-```bash
+```powershell
 opencode2 api get /api/plugin        # should list "ex-machina.anthropic-auth"
 opencode2 api get /api/integration   # anthropic should offer a "Claude Pro/Max" OAuth method
 ```
 
 Ctrl+C stops the watcher and cleans up the symlink. If the process was killed without cleanup (e.g. `kill -9`), you can manually remove the symlink:
 
-```bash
+```powershell
 bun run dev:clean
 ```
 
@@ -193,7 +194,7 @@ bun run dev:clean
 
 This project uses [changesets](https://github.com/changesets/changesets) for versioning and publishing. See the [changeset README](.changeset/README.md) for contributor details.
 
-```bash
+```powershell
 bun change          # create a changeset describing your changes
 ```
 

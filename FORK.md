@@ -7,6 +7,18 @@ ex-machina code (OAuth, refresh protection, tool aliases, streaming, compatibili
 layer) is kept as it is; changes are bug fixes and features listed below, each in its
 own commit so they can be offered upstream.
 
+## Supported platform
+
+Windows 11 only: checked on Windows 11 Pro 24H2 (build 26100), x64, with Windows
+PowerShell 5.1, Bun 1.4.4 and OpenCode 2.2.7. macOS, Linux and WSL are not maintained or
+tested. Nothing in the plugin code depends on the operating system, and nothing blocks
+another one; it is simply not looked after. The Claude Code identity sent to Anthropic is
+unrelated to this and unchanged.
+
+The commands in this file are written for PowerShell. `scripts/capture-with-mitmproxy.sh`
+and `captures/AGENTS.md` come from ex-machina and need Bash: they are kept for reference
+and are not part of this workflow. `publish.yml` only runs in ex-machina's repository.
+
 ## Versioning
 
 Both LeProta OAuth plugins use `MAJOR.MINOR.PATCH` in `package.json` and
@@ -31,10 +43,13 @@ changes are followed by hand with `bun run check:upstream` (see
 `claude_code_version_too_old` answer is still adopted: that is an answer to your own
 request, not a check.
 
+Version `2.2.1` limits the supported platform to Windows 11 (see above): documentation
+and CI only, the plugin code is the same as `2.2.0`.
+
 ## Install
 
-```bash
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.0
+```powershell
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.1
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:
@@ -120,24 +135,33 @@ lost at the next restart. Refreshes stay with OpenCode's `refresh` call.
 |----------|--------|
 | `OPENCODE_ANTHROPIC_DEBUG=1` | Logs, per response, the model, HTTP status and the `anthropic-ratelimit-*` headers. Never bodies or tokens. |
 
+Set a variable for the current PowerShell session before starting OpenCode, for example
+`$env:OPENCODE_ANTHROPIC_DEBUG = "1"`.
+
 ## Development
 
 Fork releases are published on GitHub with the matching `vMAJOR.MINOR.PATCH` tag
 and `main` commit. The inherited `release:next` script is for ex-machina's npm
 prerelease channel, not for these fork releases.
 
-```bash
+```powershell
 bun install --ignore-scripts
-bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first
-bun run bundle                               # rebuild dist/ and commit it
-bun run check:upstream                      # upstream commits not reviewed yet, npm's latest Claude Code
+Remove-Item Env:ANTHROPIC_BASE_URL -ErrorAction SilentlyContinue   # the tests must not use your own endpoint
+bun check                 # types, lint, format, tests and bundle, as in CI
+bun run check:package     # packs the plugin and loads it (needs npm, and the tar.exe Windows ships)
+bun run bundle            # rebuild dist/ and commit it
+bun run check:upstream    # upstream commits not reviewed yet, npm's latest Claude Code
 ```
+
+`bun run dev` (README) links the build into `.opencode\plugins` with a file symbolic link:
+Windows allows that only with Developer Mode on or from an elevated PowerShell.
 
 Bun is pinned to 1.4.4, the runtime OpenCode 2.2.7 embeds (ex-machina pins 1.3.14, where
 `AbortSignal.timeout()` never fires in an idle `bun test` on Windows and
 `version-rejection.test.ts` hangs). `.gitattributes` checks the sources out with LF so
-`bun check` passes on Windows. CI runs on pushes to `main` and on pull requests, and fails
-when `dist/` does not match the sources.
+`bun check` passes on Windows. CI runs on pushes to `main` and on pull requests, on a
+Windows Server 2025 runner (GitHub has no x64 Windows 11 runner), and fails when `dist/`
+does not match the sources.
 
 To take ex-machina's changes: merge `v2/main` from the upstream remote, run the tests,
 rebuild `dist/`, then `bun run check:upstream -- --accept`.
