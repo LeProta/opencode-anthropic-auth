@@ -20,8 +20,9 @@ tags remain available. The ex-machina base is recorded in [UPSTREAM.md](UPSTREAM
 not in the fork's version suffix.
 
 Version `2.1.1` fixes: a 400 answer over 16 KB could hold the response forever, the
-upstream check read its answer unbounded, and a 429 whose subscription window is
-`rejected` was retried.
+upstream check read its answer unbounded, a 429 whose subscription window is `rejected`
+was retried, and a refresh token Anthropic had already rotated away could be sent again.
+It reports Claude Code 2.1.321 and is developed on Bun 1.4.4.
 
 ## Install
 
@@ -65,6 +66,10 @@ Fixes:
 - A 429 whose `anthropic-ratelimit-unified-status` header is `rejected` is reported as a
   subscription limit and is not retried, whatever the wording of the message.
 - The daily upstream check stops reading an answer at 256 KiB instead of buffering it.
+- A refresh token that Anthropic rotated away is never sent again while the plugin
+  stays loaded: a late `refresh` call with the old credential gets the successor (or a
+  refresh of the successor once it expired). ex-machina forgot the rotation after 30 s
+  and sent the consumed token, which Anthropic refuses.
 - `package.json` has an `exports` map, which OpenCode 2.2.7 needs to load a local
   `file://` checkout.
 
@@ -106,15 +111,16 @@ prerelease channel, not for these fork releases.
 
 ```bash
 bun install --ignore-scripts
-bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first; see below for Bun
+bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first
 bun run bundle                               # rebuild dist/ and commit it
 bun run check:upstream                      # upstream commits not reviewed yet
 ```
 
-Run the tests with the Bun that OpenCode embeds (1.4.4 for OpenCode 2.2.7). With the
-pinned Bun 1.3.14 on Windows, `bun test` never finishes `version-rejection.test.ts`
-(the test runner hangs on a stream that never ends; the plugin code itself returns).
-`.gitattributes` checks the sources out with LF so `bun check` passes on Windows.
+Bun is pinned to 1.4.4, the runtime OpenCode 2.2.7 embeds (ex-machina pins 1.3.14, where
+`AbortSignal.timeout()` never fires in an idle `bun test` on Windows and
+`version-rejection.test.ts` hangs). `.gitattributes` checks the sources out with LF so
+`bun check` passes on Windows. CI runs on pushes to `main` and on pull requests, and fails
+when `dist/` does not match the sources.
 
 To take ex-machina's changes: merge `v2/main` from the upstream remote, run the tests,
 rebuild `dist/`, then `bun run check:upstream -- --accept`.
