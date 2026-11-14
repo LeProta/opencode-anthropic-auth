@@ -640,7 +640,66 @@ describe('integration registration', () => {
     }
   })
 
-  test('reuses a successful refresh for delayed calls with the rotated token', async () => {
+  test('never sends a rotated-away refresh token again, even after the grace period', async () => {
+    const { ctx, integrationMethods } = createMockContext()
+    const old = `superseded-${crypto.randomUUID()}`
+    const sent: string[] = []
+    const originalFetch = globalThis.fetch
+    const graceTimers: Array<() => void> = []
+    const realSetTimeout = globalThis.setTimeout
+    const setTimeoutSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((
+      handler: () => void,
+      delay: number,
+    ) => {
+      if (delay === 30_000) graceTimers.push(handler)
+      return { unref() {} }
+    }) as unknown as typeof setTimeout)
+    globalThis.fetch = mock((_input: unknown, init?: RequestInit) => {
+      const refresh = (
+        JSON.parse(String(init?.body)) as { refresh_token: string }
+      ).refresh_token
+      sent.push(refresh)
+      return Promise.resolve(
+        Response.json({
+          refresh_token: `${refresh}+1`,
+          access_token: `access-of-${refresh}`,
+          // The first successor is short-lived so the test can let it expire.
+          expires_in: refresh === old ? 1 : 3600,
+        }),
+      )
+    }) as unknown as typeof fetch
+
+    try {
+      const cleanup = await plugin.setup(ctx as any)
+      const registration = integrationMethods[0] as any
+      const credential = {
+        type: 'oauth' as const,
+        methodID: 'claude-max',
+        refresh: old,
+        access: 'old-access',
+        expires: Date.now() - 1000,
+      }
+
+      const first = await registration.refresh(credential)
+      for (const expire of graceTimers.splice(0)) expire()
+
+      // Still valid: the successor answers, nothing is sent.
+      expect(await registration.refresh(credential)).toEqual(first)
+      expect(sent).toEqual([old])
+
+      // Expired: the successor is refreshed, not the consumed token.
+      await new Promise((resolve) => realSetTimeout(resolve, 1100))
+      const later = await registration.refresh(credential)
+      expect(sent).toEqual([old, `${old}+1`])
+      expect(later.refresh).toBe(`${old}+1+1`)
+      await cleanup?.()
+    } finally {
+      globalThis.fetch = originalFetch
+      setTimeoutSpy.mockRestore()
+    }
+  })
+
+  test('reuses a successful refresh for delayed calls, then refreshes a token that was not rotated', async () => {
     const { ctx, integrationMethods } = createMockContext()
 
     let tokenRequests = 0
@@ -657,7 +716,7 @@ describe('integration registration', () => {
       tokenRequests++
       return Promise.resolve(
         Response.json({
-          refresh_token: 'new-refresh',
+          refresh_token: 'old-refresh',
           access_token: 'new-access',
           expires_in: 3600,
         }),

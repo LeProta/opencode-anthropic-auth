@@ -573,6 +573,10 @@ export default Plugin.define({
     // holding the rotated token cannot submit it again before persistence.
     const refreshCache = new Map<string, Promise<Credential.OAuth>>()
     const refreshCacheTimers = new Map<string, ReturnType<typeof setTimeout>>()
+    // Tokens Anthropic rotated away, past their grace period. Their entry stays
+    // so a late call is answered from the successor: a consumed refresh token
+    // is refused (invalid_grant) and must never be sent again.
+    const supersededRefreshKeys = new Set<string>()
 
     const removeRefreshCacheEntry = (
       key: string,
@@ -580,6 +584,7 @@ export default Plugin.define({
     ): void => {
       if (expected && refreshCache.get(key) !== expected) return
       refreshCache.delete(key)
+      supersededRefreshKeys.delete(key)
       const timer = refreshCacheTimers.get(key)
       if (timer) clearTimeout(timer)
       refreshCacheTimers.delete(key)
@@ -587,16 +592,30 @@ export default Plugin.define({
 
     const makeRefreshCacheRoom = (): void => {
       if (refreshCache.size < MAX_REFRESH_CACHE_ENTRIES) return
+      const [oldest] = supersededRefreshKeys
+      if (oldest !== undefined) {
+        removeRefreshCacheEntry(oldest)
+        return
+      }
       throw new Error(
         'Anthropic token refresh blocked until the consumed-token cache expires',
       )
     }
 
-    const refreshCredential = async (credential: Credential.OAuth) => {
+    const refreshCredential = async (
+      credential: Credential.OAuth,
+    ): Promise<Credential.OAuth> => {
       const key = refreshTokenKey(credential.refresh)
       if (!key) throw new Error('Anthropic token refresh failed: 400')
       const existing = refreshCache.get(key)
-      if (existing) return existing
+      if (existing) {
+        if (!supersededRefreshKeys.has(key)) return existing
+        // The successor may have expired since: refresh it, not this token.
+        const successor = await existing
+        return successor.expires > Date.now()
+          ? successor
+          : refreshCredential(successor)
+      }
 
       const shared = refreshInFlight.get(key)
       if (!shared) {
@@ -638,10 +657,15 @@ export default Plugin.define({
       try {
         const rotated = await pending
         if (refreshCache.get(key) === pending) {
-          const timer = setTimeout(
-            () => removeRefreshCacheEntry(key, pending),
-            REFRESH_CACHE_GRACE_MS,
-          )
+          const timer = setTimeout(() => {
+            // Not rotated: the same token is still good for the next refresh.
+            if (rotated.refresh === credential.refresh) {
+              return removeRefreshCacheEntry(key, pending)
+            }
+            refreshCacheTimers.delete(key)
+            if (refreshCache.get(key) === pending)
+              supersededRefreshKeys.add(key)
+          }, REFRESH_CACHE_GRACE_MS)
           timer.unref?.()
           refreshCacheTimers.set(key, timer)
         }
@@ -998,6 +1022,7 @@ export default Plugin.define({
       for (const timer of refreshCacheTimers.values()) clearTimeout(timer)
       refreshCacheTimers.clear()
       refreshCache.clear()
+      supersededRefreshKeys.clear()
     }
   },
 })
