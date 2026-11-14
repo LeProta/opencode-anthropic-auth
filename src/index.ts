@@ -68,15 +68,45 @@ const MAX_VERSION_GATE_RECOVERIES = 256
 const UNKNOWN_CONNECTION = 'Unknown OAuth connection'
 const AMBIGUOUS_CONNECTION = 'Ambiguous OAuth connection'
 
-// setup() is location-scoped while the credential store is process-global.
-// Share only active rotations; settled credentials remain location-local.
-const refreshInFlight = new Map<string, Promise<Credential.OAuth>>()
-const blockedRefreshTokens = new Map<string, number>()
-// Overflow identities intentionally never expire, rotate, or lose bits:
-// forgetting one could replay a refresh token whose prior outcome was
-// ambiguous. The fixed-size filter bounds memory and fails closed; its
-// false-positive probability therefore grows over the process lifetime.
-const blockedRefreshTokenFilter = new Uint8Array(BLOCKED_REFRESH_FILTER_BYTES)
+// Refresh state belongs to the process, not to one setup() or one evaluation of
+// this module: OpenCode disposes and recreates setup(), and imports the plugin
+// again when its files change, while the credential store stays the same. A
+// rotated, refused or ambiguous refresh token must stay known across both.
+type RefreshState = {
+  readonly inFlight: Map<string, Promise<Credential.OAuth>>
+  readonly blocked: Map<string, number>
+  readonly blockedFilter: Uint8Array
+  readonly cache: Map<string, Promise<Credential.OAuth>>
+  readonly cacheTimers: Map<string, ReturnType<typeof setTimeout>>
+  readonly superseded: Set<string>
+}
+const REFRESH_STATE = Symbol.for('leprota.anthropic-auth/refresh-state/v1')
+const refreshStateHolder = globalThis as { [REFRESH_STATE]?: RefreshState }
+refreshStateHolder[REFRESH_STATE] ??= {
+  inFlight: new Map(),
+  blocked: new Map(),
+  blockedFilter: new Uint8Array(BLOCKED_REFRESH_FILTER_BYTES),
+  cache: new Map(),
+  cacheTimers: new Map(),
+  superseded: new Set(),
+}
+const {
+  inFlight: refreshInFlight,
+  blocked: blockedRefreshTokens,
+  // Overflow identities intentionally never expire, rotate, or lose bits:
+  // forgetting one could replay a refresh token whose prior outcome was
+  // ambiguous. The fixed-size filter bounds memory and fails closed; its
+  // false-positive probability therefore grows over the process lifetime.
+  blockedFilter: blockedRefreshTokenFilter,
+  // Successful refreshes, so a host call still holding the rotated token gets
+  // its successor instead of sending it again, stored or not.
+  cache: refreshCache,
+  cacheTimers: refreshCacheTimers,
+  // Tokens Anthropic rotated away, past their grace period. Their entry stays
+  // so a late call is answered from the successor: a consumed refresh token
+  // is refused (invalid_grant) and must never be sent again.
+  superseded: supersededRefreshKeys,
+} = refreshStateHolder[REFRESH_STATE]
 // OpenCode can dispose and recreate setup() while a request is in flight, so the
 // response may reach a newer setup than the one that aliased its tool names.
 // Ownership is therefore process-wide; alias leases stay setup-local.
@@ -145,7 +175,8 @@ function blockRefreshToken(key: string, status: number): void {
   blockedRefreshTokens.set(key, status)
 }
 
-// Ambiguous failures are never 400, so that status marks a token the provider refused.
+// Ambiguous failures are never 400, so that status marks a token that is used up:
+// refused by the provider, or rotated away so long ago that its successor was evicted.
 const REFUSED_REFRESH_MESSAGE =
   'Anthropic refused this refresh token (invalid_grant): it was already used, expired or revoked, ' +
   'and it will not be sent again. If another OpenCode window just refreshed this login, retry; ' +
@@ -576,15 +607,6 @@ export default Plugin.define({
       }
     }
 
-    // Retain successful refreshes for this location so a host call
-    // holding the rotated token cannot submit it again before persistence.
-    const refreshCache = new Map<string, Promise<Credential.OAuth>>()
-    const refreshCacheTimers = new Map<string, ReturnType<typeof setTimeout>>()
-    // Tokens Anthropic rotated away, past their grace period. Their entry stays
-    // so a late call is answered from the successor: a consumed refresh token
-    // is refused (invalid_grant) and must never be sent again.
-    const supersededRefreshKeys = new Set<string>()
-
     const removeRefreshCacheEntry = (
       key: string,
       expected?: Promise<Credential.OAuth>,
@@ -601,6 +623,8 @@ export default Plugin.define({
       if (refreshCache.size < MAX_REFRESH_CACHE_ENTRIES) return
       const [oldest] = supersededRefreshKeys
       if (oldest !== undefined) {
+        // Its successor is forgotten, not the fact that Anthropic consumed it.
+        blockRefreshToken(oldest, 400)
         removeRefreshCacheEntry(oldest)
         return
       }
@@ -1030,10 +1054,6 @@ export default Plugin.define({
       }
       connectionByAuthorization.clear()
       versionGateRecoveries.clear()
-      for (const timer of refreshCacheTimers.values()) clearTimeout(timer)
-      refreshCacheTimers.clear()
-      refreshCache.clear()
-      supersededRefreshKeys.clear()
     }
   },
 })

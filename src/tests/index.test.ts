@@ -836,13 +836,24 @@ describe('integration registration', () => {
     }
   })
 
-  test('clears settled refresh credentials and timers during setup cleanup', async () => {
+  test('a rotated refresh token evicted from the full cache is refused, not sent again', async () => {
     const { ctx, integrationMethods } = createMockContext()
-    const refresh = `cleanup-${crypto.randomUUID()}`
-    let tokenRequests = 0
+    const prefix = `evicted-${crypto.randomUUID()}`
+    const sent: string[] = []
+    const graceTimers: Array<() => void> = []
     const originalFetch = globalThis.fetch
-    globalThis.fetch = mock(() => {
-      tokenRequests++
+    const setTimeoutSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((
+      handler: () => void,
+      delay: number,
+    ) => {
+      if (delay === 30_000) graceTimers.push(handler)
+      return { unref() {} }
+    }) as unknown as typeof setTimeout)
+    globalThis.fetch = mock((_input: unknown, init?: RequestInit) => {
+      const refresh = (
+        JSON.parse(String(init?.body)) as { refresh_token: string }
+      ).refresh_token
+      sent.push(refresh)
       return Promise.resolve(
         Response.json({
           refresh_token: `rotated-${refresh}`,
@@ -855,21 +866,72 @@ describe('integration registration', () => {
     try {
       const cleanup = await plugin.setup(ctx as any)
       const registration = integrationMethods[0] as any
-      const credential = {
+      const credential = (index: number) => ({
         type: 'oauth',
         methodID: 'claude-max',
-        refresh,
+        refresh: `${prefix}-${index}`,
         access: 'old-access',
         expires: Date.now() - 1000,
+      })
+      // 256 rotations past their grace period fill the cache; the 257th evicts the oldest.
+      for (let index = 0; index <= 256; index++) {
+        await registration.refresh(credential(index))
+        for (const expire of graceTimers.splice(0)) expire()
       }
-      await registration.refresh(credential)
-      await registration.refresh(credential)
-      expect(tokenRequests).toBe(1)
 
+      await expect(registration.refresh(credential(0))).rejects.toThrow(
+        'will not be sent again',
+      )
+      expect(sent.filter((token) => token === `${prefix}-0`)).toHaveLength(1)
       await cleanup?.()
-      await registration.refresh(credential)
-      expect(tokenRequests).toBe(2)
+    } finally {
+      globalThis.fetch = originalFetch
+      setTimeoutSpy.mockRestore()
+    }
+  })
+
+  test('a rotated refresh token is never sent again after the setup is disposed or the plugin is imported again', async () => {
+    const refresh = `disposed-${crypto.randomUUID()}`
+    let tokenRequests = 0
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(() => {
+      tokenRequests++
+      return Promise.resolve(
+        Response.json({
+          refresh_token: `rotated-${refresh}`,
+          access_token: `access-${refresh}`,
+          expires_in: 3600,
+        }),
+      )
+    }) as unknown as typeof fetch
+    const credential = {
+      type: 'oauth',
+      methodID: 'claude-max',
+      refresh,
+      access: 'old-access',
+      expires: Date.now() - 1000,
+    }
+    // OpenCode stores the rotation only after refresh() returns: a call that still
+    // holds the old token must get the successor from any later setup.
+    const refreshWith = async (pluginModule: typeof plugin) => {
+      const { ctx, integrationMethods } = createMockContext()
+      const cleanup = await pluginModule.setup(ctx as any)
+      const rotated = await (integrationMethods[0] as any).refresh(credential)
       await cleanup?.()
+      return rotated
+    }
+
+    try {
+      const first = await refreshWith(plugin)
+      expect(await refreshWith(plugin)).toEqual(first)
+
+      // What OpenCode does when the plugin's files change: a new module instance.
+      const reloaded = (await import(`../index.ts?reload=${refresh}`)).default
+      expect(reloaded).not.toBe(plugin)
+      expect(await refreshWith(reloaded)).toEqual(first)
+
+      expect(first.refresh).toBe(`rotated-${refresh}`)
+      expect(tokenRequests).toBe(1)
     } finally {
       globalThis.fetch = originalFetch
     }
