@@ -29,11 +29,16 @@ export type RefreshResult = {
     access: string;
     expires: number;
 }
-/** `delivered: false` means the request never left the machine (see isUndeliveredNetworkError). */
+/**
+ * `delivered: false` means the request never left the machine (see isUndeliveredNetworkError).
+ * `rejected: true` means the provider answered `invalid_grant`: the token is used up,
+ * expired or revoked (RFC 6749 §5.2) and sending it again can never succeed.
+ */
  | {
     type: 'failed';
     status: number;
     delivered?: false;
+    rejected?: true;
 };
 /**
  * Exchange a refresh token for a new access/refresh token pair.

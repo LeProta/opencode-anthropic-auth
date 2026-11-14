@@ -266,6 +266,27 @@ export async function exchange(input, verifier, redirectUri, expectedState) {
     }
     return exchangeCode(callback, verifier, redirectUri);
 }
+/** OAuth error code of a refused token request, from the standard or the Anthropic error shape. */
+async function oauthErrorCode(response) {
+    try {
+        const value = JSON.parse(await readBoundedText(response.body, MAX_TOKEN_RESPONSE_BYTES, 'Anthropic token error'));
+        if (typeof value !== 'object' || value === null || !('error' in value)) {
+            return undefined;
+        }
+        const error = value.error;
+        if (typeof error === 'string')
+            return error;
+        return typeof error === 'object' &&
+            error !== null &&
+            'type' in error &&
+            typeof error.type === 'string'
+            ? error.type
+            : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
 /**
  * Exchange a refresh token for a new access/refresh token pair.
  * Refresh tokens may rotate after a request reaches the provider. Retrying an
@@ -292,6 +313,11 @@ export async function refreshToken(refreshTokenValue) {
                 client_id: CLIENT_ID,
             }),
         });
+        if (response.status === 400) {
+            return (await oauthErrorCode(response)) === 'invalid_grant'
+                ? { type: 'failed', status: 400, rejected: true }
+                : { type: 'failed', status: 400 };
+        }
         if (!response.ok) {
             await response.body?.cancel().catch(() => { });
             return { type: 'failed', status: response.status };

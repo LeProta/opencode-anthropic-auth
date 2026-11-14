@@ -339,6 +339,37 @@ describe('refreshToken', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  test('reports a refresh token the provider refused for good (RFC 6749 invalid_grant)', async () => {
+    const bodies = [
+      '{"error":"invalid_grant","error_description":"Refresh token not found or invalid"}',
+      '{"type":"error","error":{"type":"invalid_grant","message":"x"}}',
+    ]
+    for (const body of bodies) {
+      spyOn(globalThis, 'fetch').mockImplementation((() =>
+        Promise.resolve(
+          new Response(body, { status: 400 }),
+        )) as unknown as typeof fetch)
+      expect(await refreshToken('old-refresh')).toEqual({
+        type: 'failed',
+        status: 400,
+        rejected: true,
+      })
+    }
+  })
+
+  test('keeps any other 400 retryable later', async () => {
+    for (const body of ['{"error":"invalid_request"}', 'invalid', '']) {
+      spyOn(globalThis, 'fetch').mockImplementation((() =>
+        Promise.resolve(
+          new Response(body, { status: 400 }),
+        )) as unknown as typeof fetch)
+      expect(await refreshToken('old-refresh')).toEqual({
+        type: 'failed',
+        status: 400,
+      })
+    }
+  })
+
   test('exchanges a refresh token for a new access/refresh token pair', async () => {
     let capturedBody: string | undefined
 

@@ -588,6 +588,43 @@ describe('integration registration', () => {
     }
   })
 
+  test('a refresh token Anthropic refused as invalid_grant is never sent again', async () => {
+    const { ctx, integrationMethods } = createMockContext()
+    const refresh = `refused-${crypto.randomUUID()}`
+    let tokenRequests = 0
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(() => {
+      tokenRequests++
+      return Promise.resolve(
+        new Response(
+          '{"error":"invalid_grant","error_description":"Refresh token not found or invalid"}',
+          { status: 400 },
+        ),
+      )
+    }) as unknown as typeof fetch
+
+    try {
+      await plugin.setup(ctx as any)
+      const registration = integrationMethods[0] as any
+      const credential = {
+        type: 'oauth' as const,
+        methodID: 'claude-max',
+        refresh,
+        access: 'old-access',
+        expires: Date.now() - 1000,
+      }
+      await expect(registration.refresh(credential)).rejects.toThrow(
+        'invalid_grant',
+      )
+      await expect(registration.refresh(credential)).rejects.toThrow(
+        'sign in again',
+      )
+      expect(tokenRequests).toBe(1)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('keeps different refresh tokens isolated across independent setups', async () => {
     const firstContext = createMockContext()
     const secondContext = createMockContext()

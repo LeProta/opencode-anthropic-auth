@@ -361,8 +361,38 @@ export async function exchange(
 
 export type RefreshResult =
   | { type: 'success'; refresh: string; access: string; expires: number }
-  /** `delivered: false` means the request never left the machine (see isUndeliveredNetworkError). */
-  | { type: 'failed'; status: number; delivered?: false }
+  /**
+   * `delivered: false` means the request never left the machine (see isUndeliveredNetworkError).
+   * `rejected: true` means the provider answered `invalid_grant`: the token is used up,
+   * expired or revoked (RFC 6749 §5.2) and sending it again can never succeed.
+   */
+  | { type: 'failed'; status: number; delivered?: false; rejected?: true }
+
+/** OAuth error code of a refused token request, from the standard or the Anthropic error shape. */
+async function oauthErrorCode(response: Response): Promise<string | undefined> {
+  try {
+    const value: unknown = JSON.parse(
+      await readBoundedText(
+        response.body,
+        MAX_TOKEN_RESPONSE_BYTES,
+        'Anthropic token error',
+      ),
+    )
+    if (typeof value !== 'object' || value === null || !('error' in value)) {
+      return undefined
+    }
+    const error = value.error
+    if (typeof error === 'string') return error
+    return typeof error === 'object' &&
+      error !== null &&
+      'type' in error &&
+      typeof error.type === 'string'
+      ? error.type
+      : undefined
+  } catch {
+    return undefined
+  }
+}
 
 /**
  * Exchange a refresh token for a new access/refresh token pair.
@@ -394,6 +424,11 @@ export async function refreshToken(
       }),
     })
 
+    if (response.status === 400) {
+      return (await oauthErrorCode(response)) === 'invalid_grant'
+        ? { type: 'failed', status: 400, rejected: true }
+        : { type: 'failed', status: 400 }
+    }
     if (!response.ok) {
       await response.body?.cancel().catch(() => {})
       return { type: 'failed', status: response.status }

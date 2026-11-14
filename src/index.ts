@@ -145,8 +145,15 @@ function blockRefreshToken(key: string, status: number): void {
   blockedRefreshTokens.set(key, status)
 }
 
+// Ambiguous failures are never 400, so that status marks a token the provider refused.
+const REFUSED_REFRESH_MESSAGE =
+  'Anthropic refused this refresh token (invalid_grant): it was already used, expired or revoked, ' +
+  'and it will not be sent again. If another OpenCode window just refreshed this login, retry; ' +
+  'otherwise sign in again with "opencode auth login anthropic".'
+
 function blockedRefreshError(key: string): Error | undefined {
   const status = blockedRefreshTokens.get(key)
+  if (status === 400) return new Error(REFUSED_REFRESH_MESSAGE)
   if (status !== undefined) {
     return new Error(
       `Anthropic token refresh blocked after ambiguous failure: ${status}`,
@@ -642,6 +649,10 @@ export default Plugin.define({
               throw new Error(
                 'Anthropic token refresh could not reach Anthropic (no connection); it will be retried on the next request',
               )
+            }
+            if (result.rejected) {
+              blockRefreshToken(key, 400)
+              throw new Error(REFUSED_REFRESH_MESSAGE)
             }
             if (isAmbiguousRefreshFailure(result.status)) {
               blockRefreshToken(key, result.status)
