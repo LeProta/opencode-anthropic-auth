@@ -1,6 +1,9 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
 
 concurrency:
@@ -18,4 +21,6 @@ jobs:
       - uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d # v4
       - run: bun install --frozen-lockfile
       - run: bun check
+      - name: dist/ matches the sources (OpenCode installs it as committed)
+        run: git diff --exit-code -- dist
       - run: bun run check:package
