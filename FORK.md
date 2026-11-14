@@ -19,16 +19,22 @@ Version `2.1.0` renames `2.0.0-next.7-leprota.4` without runtime changes. Existi
 tags remain available. The ex-machina base is recorded in [UPSTREAM.md](UPSTREAM.md),
 not in the fork's version suffix.
 
-Version `2.1.1` fixes: a 400 answer over 16 KB could hold the response forever, the
-upstream check read its answer unbounded, a 429 whose subscription window is `rejected`
-was retried, and a refresh token Anthropic had already rotated away, or refused as
-`invalid_grant`, could be sent again. It reports Claude Code 2.1.321 and is developed on
-Bun 1.4.4.
+Version `2.1.1` fixes: a 400 answer over 16 KB could hold the response forever, a 429
+whose subscription window is `rejected` was retried, and a refresh token Anthropic had
+already rotated away, or refused as `invalid_grant`, could be sent again. It reports
+Claude Code 2.1.321 and is developed on Bun 1.4.4.
+
+Version `2.2.0` removes the daily upstream check. The plugin no longer asks GitHub or
+the npm registry anything, and `OPENCODE_ANTHROPIC_UPDATE_CHECK` is gone. Upstream
+changes are followed by hand with `bun run check:upstream` (see
+[UPSTREAM.md](UPSTREAM.md)). A version Anthropic asks for in a
+`claude_code_version_too_old` answer is still adopted: that is an answer to your own
+request, not a check.
 
 ## Install
 
 ```bash
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.1.1
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.0
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:
@@ -66,7 +72,6 @@ Fixes:
   forever, past the 1 s budget above.
 - A 429 whose `anthropic-ratelimit-unified-status` header is `rejected` is reported as a
   subscription limit and is not retried, whatever the wording of the message.
-- The daily upstream check stops reading an answer at 256 KiB instead of buffering it.
 - A refresh token that Anthropic rotated away is never sent again by the same OpenCode
   process: a late `refresh` call with the old credential gets the successor (or a
   refresh of the successor once it expired). ex-machina forgot the rotation after 30 s,
@@ -91,9 +96,10 @@ Features shared with the Google plugin:
 - `claude_quota` tool and `/cquota` command: the `anthropic-ratelimit-*` headers of the
   last response (5-hour and weekly windows). No extra request. A snapshot is shown
   only while the login that received it is active.
-- Daily upstream check (see [UPSTREAM.md](UPSTREAM.md)): notice when ex-machina
-  `v2/main` or CLIProxyAPI's Claude files moved, or when the reported Claude Code
-  version is 25+ releases behind npm's latest. Never downloads or runs code.
+- Manual upstream check (see [UPSTREAM.md](UPSTREAM.md)): `bun run check:upstream` lists
+  what moved on ex-machina `v2/main` and in CLIProxyAPI's Claude files, and shows npm's
+  latest Claude Code next to the version the plugin reports. The plugin itself checks
+  nothing.
 - Plugin id `leprota.anthropic-auth`.
 
 Not added, on purpose: new Claude Code client-imitation mechanisms (`cch` signature,
@@ -112,7 +118,6 @@ lost at the next restart. Refreshes stay with OpenCode's `refresh` call.
 
 | Variable | Effect |
 |----------|--------|
-| `OPENCODE_ANTHROPIC_UPDATE_CHECK=0` | Turns off the daily upstream check. |
 | `OPENCODE_ANTHROPIC_DEBUG=1` | Logs, per response, the model, HTTP status and the `anthropic-ratelimit-*` headers. Never bodies or tokens. |
 
 ## Development
@@ -125,7 +130,7 @@ prerelease channel, not for these fork releases.
 bun install --ignore-scripts
 bun run types && bun run lint && bun test   # unset ANTHROPIC_BASE_URL first
 bun run bundle                               # rebuild dist/ and commit it
-bun run check:upstream                      # upstream commits not reviewed yet
+bun run check:upstream                      # upstream commits not reviewed yet, npm's latest Claude Code
 ```
 
 Bun is pinned to 1.4.4, the runtime OpenCode 2.2.7 embeds (ex-machina pins 1.3.14, where
