@@ -20,7 +20,7 @@ Reviewed at CLIProxyAPI `1aaf56b` (12 Nov 2026) and ex-machina `59a09c8`.
 
 | Item | This fork (ex-machina base) | CLIProxyAPI | Decision |
 |------|-----------------------------|-------------|----------|
-| Reported Claude Code version | 2.1.280 bundled; `ANTHROPIC_CLAUDE_CODE_VERSION` override; adopts the version a `claude_code_version_too_old` 400 asks for | 2.1.321 | Kept. The daily check warns when npm's latest is 25+ releases ahead. |
+| Reported Claude Code version | 2.1.321 bundled (ex-machina: 2.1.280); `ANTHROPIC_CLAUDE_CODE_VERSION` override; adopts the version a `claude_code_version_too_old` 400 asks for | 2.1.321 | Kept. The daily check warns when npm's latest is 25+ releases ahead. |
 | `cch` in the billing block | SHA-256 of the first user message (5 hex) | xxHash64 over the final body with a `cch=00000` placeholder | Not ported (see below). |
 | `cc_entrypoint` | `sdk-cli` | `cli` | Unchanged. |
 | `anthropic-beta` | `oauth-2025-04-20`, `interleaved-thinking-2025-05-14`, plus the caller's | Per-request list (up to ~30 betas) | Unchanged; a beta is added only for a feature OpenCode actually uses. |
