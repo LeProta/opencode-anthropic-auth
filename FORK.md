@@ -21,8 +21,9 @@ not in the fork's version suffix.
 
 Version `2.1.1` fixes: a 400 answer over 16 KB could hold the response forever, the
 upstream check read its answer unbounded, a 429 whose subscription window is `rejected`
-was retried, and a refresh token Anthropic had already rotated away could be sent again.
-It reports Claude Code 2.1.321 and is developed on Bun 1.4.4.
+was retried, and a refresh token Anthropic had already rotated away, or refused as
+`invalid_grant`, could be sent again. It reports Claude Code 2.1.321 and is developed on
+Bun 1.4.4.
 
 ## Install
 
@@ -70,6 +71,9 @@ Fixes:
   stays loaded: a late `refresh` call with the old credential gets the successor (or a
   refresh of the successor once it expired). ex-machina forgot the rotation after 30 s
   and sent the consumed token, which Anthropic refuses.
+- A refresh token the token endpoint refuses with `invalid_grant` (used up, expired or
+  revoked: RFC 6749 §5.2) is not sent again while the plugin stays loaded; the error says
+  to sign in again. Any other 400 can still be retried on a later request, as before.
 - `package.json` has an `exports` map, which OpenCode 2.2.7 needs to load a local
   `file://` checkout.
 

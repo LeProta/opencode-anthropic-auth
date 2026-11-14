@@ -12,6 +12,8 @@
 > This plugin comes with no guarantees. You might be banned for breaking the TOS, you might not be. I don't work at Anthropic, nor am I an attorney.
 >
 > Use your best judgment and don't try to abuse the subscriptions. Plugins like oh-my-openagent are _known_ to trigger bans. Please be careful when using Ralph loops or insanely heavy usage patterns.
+>
+> Anthropic's own position ([Claude Code legal and compliance](https://code.claude.com/docs/en/legal-and-compliance), read 2026-11-14): subscription OAuth is meant for Claude Code and Anthropic's other native applications, and Anthropic reserves the right to enforce this without prior notice. This plugin sends OpenCode's requests with that login, which is outside that intended use. Nothing in the plugin, including the Claude Code version and identity it reports, makes this use permitted or protects the account. An API key is the supported way to use Claude from another tool.
 
 > [!IMPORTANT]
 > If you are seeing issues, try `rm -rf ~/.cache/opencode/packages/@ex-machina` and confirm that your `opencode.json` uses the plugin release line for your OpenCode version.
