@@ -67,13 +67,21 @@ Fixes:
 - A 429 whose `anthropic-ratelimit-unified-status` header is `rejected` is reported as a
   subscription limit and is not retried, whatever the wording of the message.
 - The daily upstream check stops reading an answer at 256 KiB instead of buffering it.
-- A refresh token that Anthropic rotated away is never sent again while the plugin
-  stays loaded: a late `refresh` call with the old credential gets the successor (or a
-  refresh of the successor once it expired). ex-machina forgot the rotation after 30 s
-  and sent the consumed token, which Anthropic refuses.
+- A refresh token that Anthropic rotated away is never sent again by the same OpenCode
+  process: a late `refresh` call with the old credential gets the successor (or a
+  refresh of the successor once it expired). ex-machina forgot the rotation after 30 s,
+  and when OpenCode disposed the plugin setup, and then sent the consumed token, which
+  Anthropic refuses. The rotation is now remembered for the life of the process, across
+  setups and across a re-import of the plugin after an update; the price is that up to
+  256 refreshed credentials stay in memory after a setup is disposed. Past that bound
+  the oldest rotated token is refused locally instead of being sent.
 - A refresh token the token endpoint refuses with `invalid_grant` (used up, expired or
-  revoked: RFC 6749 §5.2) is not sent again while the plugin stays loaded; the error says
-  to sign in again. Any other 400 can still be retried on a later request, as before.
+  revoked: RFC 6749 §5.2) is not sent again by the same process; the error says to sign
+  in again. Any other 400 can still be retried on a later request, as before.
+- None of this is written to disk: after OpenCode restarts, the plugin knows only the
+  credential OpenCode stored. OpenCode 2.2.7 serialises refreshes of one credential
+  across its processes with a lock file and re-reads the stored credential under it, so
+  two windows do not send the same refresh token; that guarantee is the host's.
 - `package.json` has an `exports` map, which OpenCode 2.2.7 needs to load a local
   `file://` checkout.
 
