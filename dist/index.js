@@ -31,15 +31,29 @@ const MAX_TRACKED_REQUEST_URL_BYTES = 8 * 1024;
 const MAX_VERSION_GATE_RECOVERIES = 256;
 const UNKNOWN_CONNECTION = 'Unknown OAuth connection';
 const AMBIGUOUS_CONNECTION = 'Ambiguous OAuth connection';
-// setup() is location-scoped while the credential store is process-global.
-// Share only active rotations; settled credentials remain location-local.
-const refreshInFlight = new Map();
-const blockedRefreshTokens = new Map();
+const REFRESH_STATE = Symbol.for('leprota.anthropic-auth/refresh-state/v1');
+const refreshStateHolder = globalThis;
+refreshStateHolder[REFRESH_STATE] ??= {
+    inFlight: new Map(),
+    blocked: new Map(),
+    blockedFilter: new Uint8Array(BLOCKED_REFRESH_FILTER_BYTES),
+    cache: new Map(),
+    cacheTimers: new Map(),
+    superseded: new Set(),
+};
+const { inFlight: refreshInFlight, blocked: blockedRefreshTokens, 
 // Overflow identities intentionally never expire, rotate, or lose bits:
 // forgetting one could replay a refresh token whose prior outcome was
 // ambiguous. The fixed-size filter bounds memory and fails closed; its
 // false-positive probability therefore grows over the process lifetime.
-const blockedRefreshTokenFilter = new Uint8Array(BLOCKED_REFRESH_FILTER_BYTES);
+blockedFilter: blockedRefreshTokenFilter, 
+// Successful refreshes, so a host call still holding the rotated token gets
+// its successor instead of sending it again, stored or not.
+cache: refreshCache, cacheTimers: refreshCacheTimers, 
+// Tokens Anthropic rotated away, past their grace period. Their entry stays
+// so a late call is answered from the successor: a consumed refresh token
+// is refused (invalid_grant) and must never be sent again.
+superseded: supersededRefreshKeys, } = refreshStateHolder[REFRESH_STATE];
 // OpenCode can dispose and recreate setup() while a request is in flight, so the
 // response may reach a newer setup than the one that aliased its tool names.
 // Ownership is therefore process-wide; alias leases stay setup-local.
@@ -95,7 +109,8 @@ function blockRefreshToken(key, status) {
     }
     blockedRefreshTokens.set(key, status);
 }
-// Ambiguous failures are never 400, so that status marks a token the provider refused.
+// Ambiguous failures are never 400, so that status marks a token that is used up:
+// refused by the provider, or rotated away so long ago that its successor was evicted.
 const REFUSED_REFRESH_MESSAGE = 'Anthropic refused this refresh token (invalid_grant): it was already used, expired or revoked, ' +
     'and it will not be sent again. If another OpenCode window just refreshed this login, retry; ' +
     'otherwise sign in again with "opencode auth login anthropic".';
@@ -441,14 +456,6 @@ export default Plugin.define({
                 reconstructedAliasLookups -= 1;
             }
         };
-        // Retain successful refreshes for this location so a host call
-        // holding the rotated token cannot submit it again before persistence.
-        const refreshCache = new Map();
-        const refreshCacheTimers = new Map();
-        // Tokens Anthropic rotated away, past their grace period. Their entry stays
-        // so a late call is answered from the successor: a consumed refresh token
-        // is refused (invalid_grant) and must never be sent again.
-        const supersededRefreshKeys = new Set();
         const removeRefreshCacheEntry = (key, expected) => {
             if (expected && refreshCache.get(key) !== expected)
                 return;
@@ -464,6 +471,8 @@ export default Plugin.define({
                 return;
             const [oldest] = supersededRefreshKeys;
             if (oldest !== undefined) {
+                // Its successor is forgotten, not the fact that Anthropic consumed it.
+                blockRefreshToken(oldest, 400);
                 removeRefreshCacheEntry(oldest);
                 return;
             }
@@ -850,11 +859,6 @@ export default Plugin.define({
             }
             connectionByAuthorization.clear();
             versionGateRecoveries.clear();
-            for (const timer of refreshCacheTimers.values())
-                clearTimeout(timer);
-            refreshCacheTimers.clear();
-            refreshCache.clear();
-            supersededRefreshKeys.clear();
         };
     },
 });
