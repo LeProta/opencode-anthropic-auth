@@ -42,7 +42,6 @@ import {
   setOAuthHeaders,
   ToolNameAliasTable,
 } from './transform.ts'
-import { checkUpstreamUpdate } from './upstream.ts'
 import { detectClaudeCodeVersionRejection } from './version-rejection.ts'
 
 const PLUGIN_ID = 'leprota.anthropic-auth'
@@ -360,11 +359,6 @@ export default Plugin.define({
     // fallback path for an unset (or malformed and therefore ignored) value.
     const hasExplicitVersionOverride =
       rawVersionOverride !== undefined && versionResolution.type !== 'invalid'
-    void checkUpstreamUpdate(
-      claudeCodeVersion,
-      (message) => console.warn(`[${PLUGIN_ID}] ${message}`),
-      { storage: ctx.storage },
-    ).catch(() => {})
     // This set is only an at-most-once limiter. The exact response is marked
     // retryable below, so this key never authorizes an unrelated retry event.
     // On overflow, recovery fails closed rather than forgetting old entries.

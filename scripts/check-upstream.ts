@@ -1,8 +1,11 @@
-// Lists upstream commits not yet reviewed for the sources in src/upstream.ts.
+// Lists upstream commits not yet reviewed for the sources in src/upstream.ts,
+// then the Claude Code release on npm next to the version this plugin reports.
+// Run by hand: the plugin itself checks nothing.
 //   bun run check:upstream               show what changed, with compare links
 //   bun run check:upstream -- --accept   record the latest commits as reviewed
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { CLAUDE_CODE_VERSION } from '../src/constants.ts'
 import { UPSTREAM_SOURCES } from '../src/upstream.ts'
 
 const upstreamPath = join(import.meta.dir, '..', 'src', 'upstream.ts')
@@ -49,6 +52,17 @@ for (const source of UPSTREAM_SOURCES) {
     `reviewed: '${fresh[0]?.sha}'`,
   )
 }
+
+const npm = await fetch(
+  'https://registry.npmjs.org/@anthropic-ai/claude-code/latest',
+  { headers },
+)
+const latest = npm.ok
+  ? ((await npm.json()) as { version?: string }).version
+  : `unavailable (${npm.status})`
+console.log(
+  `Claude Code on npm: ${latest}; this plugin reports ${CLAUDE_CODE_VERSION} (src/constants.ts).`,
+)
 
 if (process.argv.includes('--accept')) {
   await writeFile(upstreamPath, next)

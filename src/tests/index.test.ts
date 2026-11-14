@@ -105,6 +105,24 @@ describe('integration registration', () => {
     expect(registration.label).toBeFunction()
   })
 
+  test('contacts no update source during setup', async () => {
+    const originalFetch = globalThis.fetch
+    const urls: string[] = []
+    globalThis.fetch = mock(async (input: unknown) => {
+      urls.push(input instanceof Request ? input.url : String(input))
+      return new Response('offline', { status: 503 })
+    }) as unknown as typeof fetch
+    try {
+      const { ctx } = createMockContext()
+      await plugin.setup(ctx as any)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      // No GitHub, no npm registry: upstream changes are followed by hand.
+      expect(urls).toEqual([])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('creates a privacy-safe random label for each successful OAuth connection', async () => {
     const { ctx, integrationMethods } = createMockContext()
     await plugin.setup(ctx as any)
