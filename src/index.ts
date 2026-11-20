@@ -2,7 +2,7 @@ import { createHash, createHmac, type Hmac, randomBytes } from 'node:crypto'
 import { type Credential, Plugin } from '@opencode/plugin'
 import {
   authorize,
-  exchange,
+  createCodeExchange,
   exchangeFailureMessage,
   refreshToken,
 } from './auth.ts'
@@ -719,17 +719,13 @@ export default Plugin.define({
         },
         authorize: async () => {
           const result = await authorize('max')
+          const exchangeCodeOnce = createCodeExchange(result)
           return {
             url: result.url,
             instructions: 'Paste the authorization code here:',
             mode: 'code',
             callback: async (code: string) => {
-              const exchanged = await exchange(
-                code,
-                result.verifier,
-                result.redirectUri,
-                result.state,
-              )
+              const exchanged = await exchangeCodeOnce(code)
               if (exchanged.type === 'failed') {
                 throw new Error(exchangeFailureMessage(exchanged.reason))
               }

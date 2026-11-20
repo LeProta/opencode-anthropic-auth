@@ -166,6 +166,9 @@ function parseCallbackInput(input) {
     const trimmed = input.trim();
     try {
         const url = new URL(trimmed);
+        if (['code', 'state'].some((key) => url.searchParams.getAll(key).length > 1)) {
+            return null;
+        }
         const code = url.searchParams.get('code');
         const state = url.searchParams.get('state');
         if (code && state) {
@@ -180,6 +183,9 @@ function parseCallbackInput(input) {
         return { code: hashSplits[0], state: hashSplits[1] };
     }
     const params = new URLSearchParams(trimmed);
+    if (['code', 'state'].some((key) => params.getAll(key).length > 1)) {
+        return null;
+    }
     const code = params.get('code');
     const state = params.get('state');
     if (code && state) {
@@ -265,6 +271,35 @@ export async function exchange(input, verifier, redirectUri, expectedState) {
         return { type: 'failed', reason: 'invalid_input' };
     }
     return exchangeCode(callback, verifier, redirectUri);
+}
+/** Bind one code exchange to the sign-in, including concurrent and late callbacks. */
+export function createCodeExchange(authorization) {
+    let submitted;
+    return (input) => {
+        if (input.length > MAX_CALLBACK_INPUT_BYTES) {
+            return Promise.resolve({ type: 'failed', reason: 'invalid_input' });
+        }
+        if (submitted) {
+            return input.trim() === submitted.input
+                ? submitted.result
+                : Promise.resolve({ type: 'failed', reason: 'invalid_input' });
+        }
+        const result = exchange(input, authorization.verifier, authorization.redirectUri, authorization.state);
+        const attempt = { input: input.trim(), result };
+        submitted = attempt;
+        // Invalid pasted input never sends a request and may be corrected locally.
+        void result
+            .then((outcome) => {
+            if (outcome.type === 'failed' &&
+                (outcome.reason === 'invalid_input' ||
+                    outcome.reason === 'state_mismatch') &&
+                submitted === attempt) {
+                submitted = undefined;
+            }
+        })
+            .catch(() => { });
+        return result;
+    };
 }
 /** OAuth error code of a refused token request, from the standard or the Anthropic error shape. */
 async function oauthErrorCode(response) {

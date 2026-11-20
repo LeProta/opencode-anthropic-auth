@@ -1,7 +1,7 @@
 # OpenCode Anthropic Auth Plugin
 
 > [!NOTE]
-> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.1`.
+> **LeProta fork** (OpenCode v2): install with `opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.2`.
 > The fork supports Windows 11 only (see FORK.md); commands are written for PowerShell.
 > What differs from ex-machina, and why: [FORK.md](FORK.md) and [UPSTREAM.md](UPSTREAM.md).
 > Fork versions use `MAJOR.MINOR.PATCH`, like the Gemini fork; the upstream release channels below describe ex-machina's packages.

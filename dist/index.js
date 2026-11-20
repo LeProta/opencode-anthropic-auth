@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { Plugin } from '@opencode/plugin';
-import { authorize, exchange, exchangeFailureMessage, refreshToken, } from "./auth.js";
+import { authorize, createCodeExchange, exchangeFailureMessage, refreshToken, } from "./auth.js";
 import { BodyLimitError, contentLength, readBoundedText } from "./bounded.js";
 import { ANTHROPIC_CLAUDE_CODE_VERSION_ENV_VAR, compareClaudeCodeVersions, isValidClaudeCodeVersion, resolveClaudeCodeVersion, } from "./config.js";
 import { CLAUDE_CODE_VERSION, formatUserAgent, REQUIRED_BETAS, } from "./constants.js";
@@ -566,12 +566,13 @@ export default Plugin.define({
                 },
                 authorize: async () => {
                     const result = await authorize('max');
+                    const exchangeCodeOnce = createCodeExchange(result);
                     return {
                         url: result.url,
                         instructions: 'Paste the authorization code here:',
                         mode: 'code',
                         callback: async (code) => {
-                            const exchanged = await exchange(code, result.verifier, result.redirectUri, result.state);
+                            const exchanged = await exchangeCodeOnce(code);
                             if (exchanged.type === 'failed') {
                                 throw new Error(exchangeFailureMessage(exchanged.reason));
                             }

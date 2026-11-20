@@ -46,10 +46,15 @@ request, not a check.
 Version `2.2.1` limits the supported platform to Windows 11 (see above): documentation
 and CI only, the plugin code is the same as `2.2.0`.
 
+Version `2.2.2` shares one code exchange across concurrent or repeated submissions
+within a sign-in. An ambiguous network failure requires starting a new sign-in.
+Invalid local input can be corrected before any exchange is sent. Duplicate code
+or state parameters are refused before contacting Anthropic.
+
 ## Install
 
 ```powershell
-opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.1
+opencode plugin add github:LeProta/opencode-anthropic-auth#v2.2.2
 ```
 
 Replace `@ex-machina/opencode-anthropic-auth@…` in the `plugins` list if it is there:

@@ -187,6 +187,12 @@ describe('integration registration', () => {
       expect(credential.access).toBe('access-1')
       expect(credential.refresh).toBe('refresh-1')
       expect(credential.expires).toBeGreaterThan(Date.now())
+      expect(
+        await authorization.callback(
+          `somecode#${new URL(authorization.url).searchParams.get('state')}`,
+        ),
+      ).toEqual(credential)
+      expect(globalThis.fetch).toHaveBeenCalledTimes(1)
     } finally {
       globalThis.fetch = originalFetch
     }

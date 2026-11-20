@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test'
 import {
   authorize,
+  createCodeExchange,
   exchange,
   isUndeliveredNetworkError,
   refreshToken,
@@ -9,6 +10,44 @@ import { CLIENT_ID, CODE_CALLBACK_URL, OAUTH_SCOPES } from '../constants'
 
 afterEach(() => {
   mock.restore()
+})
+
+describe('sign-in code ownership', () => {
+  test('exchanges a code once across concurrent and late submissions', async () => {
+    const authorization = await authorize('max')
+    const code = `synthetic-code#${authorization.state}`
+    const fetchMock = spyOn(globalThis, 'fetch').mockImplementation(
+      (async () => {
+        return Response.json({
+          access_token: 'access',
+          refresh_token: 'refresh',
+          expires_in: 3600,
+        })
+      }) as unknown as typeof fetch,
+    )
+    const exchangeOnce = createCodeExchange(authorization)
+    const first = exchangeOnce(code)
+    const second = exchangeOnce(code)
+    expect(await second).toEqual(await first)
+    expect(await exchangeOnce(code)).toEqual(await first)
+    expect(
+      (await exchangeOnce(`another-code#${authorization.state}`)).type,
+    ).toBe('failed')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  test('allows correcting invalid input but never replays after a network failure', async () => {
+    const authorization = await authorize('max')
+    const exchangeOnce = createCodeExchange(authorization)
+    const fetchMock = spyOn(globalThis, 'fetch').mockRejectedValue(
+      new TypeError('fetch failed'),
+    )
+    expect((await exchangeOnce('invalid-input')).type).toBe('failed')
+    const code = `synthetic-code#${authorization.state}`
+    expect((await exchangeOnce(code)).type).toBe('failed')
+    expect((await exchangeOnce(code)).type).toBe('failed')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('authorize', () => {
@@ -55,6 +94,19 @@ describe('authorize', () => {
 })
 
 describe('exchange', () => {
+  test('refuses ambiguous callback parameters before sending the code', async () => {
+    const request = spyOn(globalThis, 'fetch')
+    for (const input of [
+      'https://example.test/?code=a&code=b&state=s',
+      'code=a&state=s&state=other',
+    ]) {
+      expect(await exchange(input, 'verifier', CODE_CALLBACK_URL, 's')).toEqual(
+        { type: 'failed', reason: 'invalid_input' },
+      )
+    }
+    expect(request).not.toHaveBeenCalled()
+  })
+
   test('accepts code#state format', async () => {
     let capturedBody: string | undefined
 

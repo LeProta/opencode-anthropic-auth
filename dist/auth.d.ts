@@ -23,6 +23,8 @@ export type ExchangeResult = {
 /** Why a code exchange failed, safe to show (never echoes the code or a token). */
 export type ExchangeFailureReason = 'invalid_input' | 'state_mismatch' | 'rejected' | 'network' | 'invalid_response';
 export declare function exchange(input: string, verifier: string, redirectUri: string, expectedState?: string): Promise<ExchangeResult>;
+/** Bind one code exchange to the sign-in, including concurrent and late callbacks. */
+export declare function createCodeExchange(authorization: AuthorizationResult): (input: string) => Promise<ExchangeResult>;
 export type RefreshResult = {
     type: 'success';
     refresh: string;
