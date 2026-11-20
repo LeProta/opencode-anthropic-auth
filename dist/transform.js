@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
-import { buildBillingHeaderValue } from "./cch.js";
+import { buildBillingHeaderValue, signRequestBody } from "./cch.js";
 import { CLAUDE_CODE_ENTRYPOINT, CLAUDE_CODE_IDENTITY, CLAUDE_CODE_VERSION, formatUserAgent, OPENCODE_IDENTITY_PREFIX, PARAGRAPH_REMOVAL_ANCHORS, REQUIRED_BETAS, TEXT_REPLACEMENTS, TOOL_PREFIX, } from "./constants.js";
 import { assertWellFormedUtf16, createBoundedJsonToolNameStream, MAX_JSON_NODES, MAX_JSON_OBJECT_KEYS, MAX_JSON_TOOL_NAME_BYTES, } from "./json-response-stream.js";
 // Bound an incomplete SSE line so malformed streams cannot grow memory forever.
@@ -839,7 +839,7 @@ export function rewriteRequestBody(body, version = CLAUDE_CODE_VERSION, aliases 
         system.unshift({ type: 'text', text: billingHeader });
     }
     parsed.system = system;
-    return prefixToolNames(parsed, alreadyPrefixed, aliases);
+    return signRequestBody(prefixToolNames(parsed, alreadyPrefixed, aliases));
 }
 /**
  * Create a streaming response that strips the tool prefix from tool names.

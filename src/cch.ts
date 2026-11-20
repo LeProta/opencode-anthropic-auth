@@ -65,3 +65,56 @@ export function buildBillingHeaderValue(
     `cch=${cch};`
   )
 }
+
+/** Hash view of our canonical JSON.stringify output; matches Claude Code's dispatch exclusions. */
+function hashView(value: unknown, depth = 0): string {
+  if (depth > 256) throw new Error('Claude CCH input exceeds the depth limit')
+  if (Array.isArray(value))
+    return `[${value.map((item) => hashView(item, depth + 1)).join(',')}]`
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value)
+    const excluded = (key: string) =>
+      key === 'max_tokens' ||
+      key === 'fallbacks' ||
+      key === 'fallback_credit_token'
+    const members = entries
+      .filter(([key]) => !excluded(key))
+      .map(
+        ([key, item]) =>
+          `${JSON.stringify(key)}:${key === 'model' && typeof item === 'string' ? '""' : hashView(item, depth + 1)}`,
+      )
+    let trailing = 0
+    for (
+      let i = entries.length - 1;
+      i >= 0 && excluded(entries[i]?.[0] ?? '');
+      i--
+    )
+      trailing++
+    // Native hash view retains the preceding comma for a trailing run of 2+ dispatch fields.
+    return `{${members.join(',')}${members.length && trailing > 1 ? ',' : ''}}`
+  }
+  return JSON.stringify(value)
+}
+
+/** Sign after metadata, prompt and tool rewrites; only the billing block is changed. */
+export function signRequestBody(body: string): string {
+  const parsed: unknown = JSON.parse(body)
+  if (!parsed || typeof parsed !== 'object' || !('system' in parsed))
+    return body
+  if (!Array.isArray(parsed.system)) return body
+  const billing = parsed.system.find(
+    (block) =>
+      block?.type === 'text' &&
+      typeof block.text === 'string' &&
+      block.text.startsWith('x-anthropic-billing-header:'),
+  )
+  if (!billing || !/\bcch=[0-9a-f]{5};/.test(billing.text)) return body
+  billing.text = billing.text.replace(/\bcch=[0-9a-f]{5};/, 'cch=00000;')
+  const hash = (
+    Bun.hash.xxHash64(hashView(parsed), 0x4d659218e32a3268n) & 0xfffffn
+  )
+    .toString(16)
+    .padStart(5, '0')
+  billing.text = billing.text.replace(/\bcch=00000;/, `cch=${hash};`)
+  return JSON.stringify(parsed)
+}

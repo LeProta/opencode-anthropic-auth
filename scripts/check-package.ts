@@ -10,8 +10,18 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const PROJECT_ROOT = resolve(import.meta.dirname, '..')
-const REQUIRED_FILES = ['package.json', 'dist/index.js', 'dist/index.d.ts']
-const PACKAGE_ROOT_FILES = new Set(['LICENSE', 'README.md', 'package.json'])
+const REQUIRED_FILES = [
+  'package.json',
+  'dist/index.js',
+  'dist/index.d.ts',
+  'THIRD_PARTY_NOTICES.md',
+]
+const PACKAGE_ROOT_FILES = new Set([
+  'LICENSE',
+  'README.md',
+  'package.json',
+  'THIRD_PARTY_NOTICES.md',
+])
 
 function fail(message: string): never {
   throw new Error(`[check:package] ${message}`)

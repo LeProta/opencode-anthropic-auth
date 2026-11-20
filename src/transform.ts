@@ -1,6 +1,6 @@
 import { Buffer } from 'node:buffer'
 import { createHash } from 'node:crypto'
-import { buildBillingHeaderValue } from './cch.ts'
+import { buildBillingHeaderValue, signRequestBody } from './cch.ts'
 import {
   CLAUDE_CODE_ENTRYPOINT,
   CLAUDE_CODE_IDENTITY,
@@ -1040,7 +1040,7 @@ export function rewriteRequestBody(
   }
   parsed.system = system
 
-  return prefixToolNames(parsed, alreadyPrefixed, aliases)
+  return signRequestBody(prefixToolNames(parsed, alreadyPrefixed, aliases))
 }
 
 /**

@@ -21,4 +21,6 @@ export declare function computeVersionSuffix(messageText: string, version?: stri
  * Build the complete billing header string for insertion into system[0].
  */
 export declare function buildBillingHeaderValue(messages: Message[], version: string | undefined, entrypoint: string): string;
+/** Sign after metadata, prompt and tool rewrites; only the billing block is changed. */
+export declare function signRequestBody(body: string): string;
 export {};

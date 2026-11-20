@@ -50,6 +50,9 @@ Version `2.2.2` shares one code exchange across concurrent or repeated submissio
 within a sign-in. An ambiguous network failure requires starting a new sign-in.
 Invalid local input can be corrected before any exchange is sent. Duplicate code
 or state parameters are refused before contacting Anthropic.
+The outgoing `cch` now uses xxHash64 of the final normalized body, after prompt and
+tool-name rewriting. Twenty-four independent CLIProxyAPI compatibility vectors
+cover the normalization. Legacy SHA-256 helpers remain available for callers.
 
 ## Install
 
@@ -122,8 +125,8 @@ Features shared with the Google plugin:
   nothing.
 - Plugin id `leprota.anthropic-auth`.
 
-Not added, on purpose: new Claude Code client-imitation mechanisms (`cch` signature,
-client headers, imitated `metadata.user_id`, compression). See UPSTREAM.md.
+The final-body `cch` is implemented. Additional client headers, device metadata and
+compression remain described in UPSTREAM.md.
 
 Not implemented because they could not be verified: filtering models through
 `/v1/models`, an account label from the OAuth profile, a localhost callback.
